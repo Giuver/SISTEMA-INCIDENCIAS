@@ -5,7 +5,9 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+        "lint:fix": "eslint . --ext js,jsx --fix"
     },
     "dependencies": {
         "@emotion/react": "^11.11.1",
@@ -18,6 +20,7 @@
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "react-router-dom": "^6.22.0",
+        "recharts": "^3.0.2",
         "socket.io-client": "^4.8.1",
         "xlsx": "^0.18.5"
     },
