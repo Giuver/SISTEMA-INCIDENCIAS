@@ -123,45 +123,23 @@ const RecentIncidents = ({ incidents, loading, onViewIncident }) => {
                                     </Box>
                                 }
                                 secondary={
-                                    <Box sx={{ mt: 1 }}>
-                                        <Box sx={{ display: 'flex', gap: 1, mb: 0.5 }}>
-                                            <Typography component="span" variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                                                Categoría:
-                                            </Typography>
-                                            <Typography component="span" variant="body2" color="text.secondary">
-                                                {incident.categoria || 'Sin categoría'}
-                                            </Typography>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', gap: 1, mb: 0.5 }}>
-                                            <Typography component="span" variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                                                Asignado:
-                                            </Typography>
-                                            <Typography component="span" variant="body2" color="text.secondary">
-                                                {incident.assignedTo?.name || 'Sin asignar'}
-                                            </Typography>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', gap: 1 }}>
-                                            <Typography component="span" variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                                                Creado:
-                                            </Typography>
-                                            <Typography component="span" variant="body2" color="text.secondary">
-                                                {incident.createdAt ? new Date(incident.createdAt).toLocaleString() : 'Sin fecha'}
-                                            </Typography>
-                                        </Box>
-                                    </Box>
+                                    <Typography component="span" variant="body2" color="text.secondary">
+                                        <Typography component="span" sx={{ fontWeight: 'bold' }}>
+                                            Área:
+                                        </Typography>{' '}
+                                        {incident.area || 'Sin área'} • {' '}
+                                        <Typography component="span" sx={{ fontWeight: 'bold' }}>
+                                            Asignado:
+                                        </Typography>{' '}
+                                        {incident.assignedTo?.name || 'Sin asignar'} • {' '}
+                                        <Typography component="span" sx={{ fontWeight: 'bold' }}>
+                                            Creado:
+                                        </Typography>{' '}
+                                        {incident.createdAt ? new Date(incident.createdAt).toLocaleString() : 'Sin fecha'}
+                                    </Typography>
                                 }
                             />
-                            <Box display="flex" gap={1}>
-                                <Tooltip title="Ver detalles">
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => onViewIncident(incident._id)}
-                                        color="primary"
-                                    >
-                                        <Visibility />
-                                    </IconButton>
-                                </Tooltip>
-                            </Box>
+                            <Box display="flex" gap={1}></Box>
                         </ListItem>
                         {idx < incidents.length - 1 && <Divider />}
                     </React.Fragment>

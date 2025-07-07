@@ -8,20 +8,37 @@ import Dashboard from './pages/Dashboard';
 import IncidentForm from './pages/IncidentForm';
 import IncidentList from './pages/IncidentList';
 import IncidentDetail from './pages/IncidentDetail';
-import CategoryAdmin from './pages/CategoryAdmin';
+import AreaAdmin from './pages/AreaAdmin';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import UserManagement from './pages/UserManagement';
 import { SnackbarProvider } from 'notistack';
-import Assignments from './pages/Assignments';
+
 import { useEffect } from 'react';
 import PrivateRoute from './components/PrivateRoute';
 import { Box } from '@mui/material';
 import AuditLog from './pages/AuditLog';
+import { NotificationProvider } from './utils/notification.jsx';
+import { testAuthentication, clearTestData } from './utils/testAuth';
+import DebugAuth from './components/DebugAuth';
+
+// Función de debug temporal - disponible en la consola del navegador
+window.debugAuth = {
+    test: testAuthentication,
+    clear: clearTestData,
+    getToken: () => localStorage.getItem('token'),
+    getRole: () => localStorage.getItem('role'),
+    getUserId: () => localStorage.getItem('userId'),
+    getAll: () => ({
+        token: localStorage.getItem('token'),
+        role: localStorage.getItem('role'),
+        userId: localStorage.getItem('userId')
+    })
+};
 
 function AppRoutes() {
     const location = useLocation();
-    const hideNavbar = location.pathname === '/login' || location.pathname === '/registro';
+    const hideNavbar = location.pathname === '/login' || location.pathname === '/registro' || location.pathname === '/debug';
     return (
         <Box sx={{ display: 'flex' }}>
             {!hideNavbar && <Sidebar />}
@@ -29,6 +46,7 @@ function AppRoutes() {
                 <Routes>
                     <Route path="/login" element={<Login />} />
                     <Route path="/registro" element={<Register />} />
+                    <Route path="/debug" element={<DebugAuth />} />
 
                     <Route path="/" element={
                         <PrivateRoute>
@@ -48,27 +66,15 @@ function AppRoutes() {
                         </PrivateRoute>
                     } />
 
-                    <Route path="/categorias" element={
+                    <Route path="/areas" element={
                         <PrivateRoute roles={['admin']}>
-                            <CategoryAdmin />
+                            <AreaAdmin />
                         </PrivateRoute>
                     } />
 
                     <Route path="/usuarios" element={
                         <PrivateRoute roles={['admin']}>
                             <UserManagement />
-                        </PrivateRoute>
-                    } />
-
-                    <Route path="/assignments" element={
-                        <PrivateRoute roles={['admin', 'soporte']}>
-                            <Assignments />
-                        </PrivateRoute>
-                    } />
-
-                    <Route path="/asignaciones" element={
-                        <PrivateRoute roles={['admin', 'soporte']}>
-                            <Assignments />
                         </PrivateRoute>
                     } />
 
@@ -85,17 +91,19 @@ function AppRoutes() {
 
 function App() {
     return (
-        <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
-            <ThemeProvider theme={theme}>
-                <CssBaseline />
-                <Router future={{
-                    v7_startTransition: true,
-                    v7_relativeSplatPath: true
-                }}>
-                    <AppRoutes />
-                </Router>
-            </ThemeProvider>
-        </SnackbarProvider>
+        <NotificationProvider>
+            <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+                <ThemeProvider theme={theme}>
+                    <CssBaseline />
+                    <Router future={{
+                        v7_startTransition: true,
+                        v7_relativeSplatPath: true
+                    }}>
+                        <AppRoutes />
+                    </Router>
+                </ThemeProvider>
+            </SnackbarProvider>
+        </NotificationProvider>
     );
 }
 

@@ -70,29 +70,11 @@ mongoose.connect('mongodb://localhost:27017/incident-management', {
 // Rutas
 app.use('/api/incidents', require('./routes/incidents'));
 app.use('/api/users', require('./routes/users'));
-app.use('/api/categories', require('./routes/categories'));
+app.use('/api/areas', require('./routes/areas'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/audit', auditRoutes);
 
-// Ruta de verificación de token
-app.get('/api/auth/verify', auth, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).select('-password');
-        if (!user) {
-            return res.status(401).json({
-                message: 'Usuario no encontrado',
-                error: 'USER_NOT_FOUND'
-            });
-        }
-        res.json({ user });
-    } catch (error) {
-        console.error('Error al verificar token:', error);
-        res.status(500).json({
-            message: 'Error al verificar token',
-            error: 'TOKEN_VERIFICATION_ERROR'
-        });
-    }
-});
+// La ruta de verificación está en routes/users.js
 
 // Configuración de Socket.IO
 io.use(async (socket, next) => {
@@ -132,6 +114,14 @@ io.on('connection', (socket) => {
     });
 });
 
+global.sendNotification = (userId, notification) => {
+    for (const [id, socket] of io.of('/').sockets) {
+        if (socket.userId === userId) {
+            socket.emit('newNotification', notification);
+        }
+    }
+};
+
 // Middleware para verificar la conexión a MongoDB
 app.use((req, res, next) => {
     if (mongoose.connection.readyState !== 1) {
@@ -160,7 +150,7 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Función para iniciar el servidor
 const startServer = async () => {

@@ -3,7 +3,7 @@ const API_BASE_URL = 'http://localhost:5000';
 
 export const API_ENDPOINTS = {
     LOGIN: `${API_BASE_URL}/api/users/login`,
-    VERIFY: `${API_BASE_URL}/api/auth/verify`,
+    VERIFY: `${API_BASE_URL}/api/users/verify`,
     INCIDENTS: `${API_BASE_URL}/api/incidents`,
     CATEGORIES: `${API_BASE_URL}/api/categories`,
     NOTIFICATIONS: `${API_BASE_URL}/api/notifications`,

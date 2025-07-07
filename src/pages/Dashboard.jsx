@@ -16,6 +16,7 @@ import RecentIncidents from '../components/dashboard/RecentIncidents';
 import AssigneeChart from '../components/dashboard/AssigneeChart';
 import PerformanceMetrics from '../components/dashboard/PerformanceMetrics';
 import SystemAlerts from '../components/dashboard/SystemAlerts';
+import RiskDashboard from '../components/dashboard/RiskDashboard';
 
 // Utilidades
 import {
@@ -117,10 +118,10 @@ const Dashboard = () => {
         return Object.entries(counts).map(([name, value]) => ({ name, value }));
     }, [filteredIncidencias]);
 
-    const porCategoria = useMemo(() => {
+    const porArea = useMemo(() => {
         const counts = {};
         filteredIncidencias.forEach(i => {
-            const key = i.categoria || 'Sin categoría';
+            const key = i.area || 'Sin área';
             counts[key] = (counts[key] || 0) + 1;
         });
         return Object.entries(counts).map(([name, value]) => ({ name, value }));
@@ -129,7 +130,7 @@ const Dashboard = () => {
     const porPrioridad = useMemo(() => {
         const counts = {};
         filteredIncidencias.forEach(i => {
-            const key = i.prioridad || 'Sin prioridad';
+            const key = i.priority || 'Sin prioridad';
             counts[key] = (counts[key] || 0) + 1;
         });
         return Object.entries(counts).map(([name, value]) => ({ name, value }));
@@ -166,9 +167,7 @@ const Dashboard = () => {
             case 'new-incident':
                 navigate('/incidents/new');
                 break;
-            case 'assign-incidents':
-                navigate('/assignments');
-                break;
+
             case 'reports':
                 navigate('/reports');
                 break;
@@ -178,8 +177,8 @@ const Dashboard = () => {
             case 'users':
                 navigate('/users');
                 break;
-            case 'categories':
-                navigate('/categories');
+            case 'areas':
+                navigate('/areas');
                 break;
             default:
                 break;
@@ -208,9 +207,6 @@ const Dashboard = () => {
                 <KPICards kpis={kpis} loading={loading} />
             </Box>
 
-            {/* Acciones rápidas */}
-            <QuickActions onAction={handleAction} />
-
             {/* Gráfico de tendencias */}
             <Box mb={4}>
                 <TrendsChart data={trendsData} loading={loading} />
@@ -235,17 +231,17 @@ const Dashboard = () => {
 
             {/* Gráficos adicionales */}
             <Grid container spacing={3}>
-                {/* Gráfico por categoría */}
+                {/* Gráfico por área */}
                 <Grid item xs={12} md={6}>
                     <Box sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 2, height: 400 }}>
                         <Typography variant="h6" fontWeight={700} mb={2}>
-                            Incidencias por Categoría
+                            Incidencias por Área
                         </Typography>
                         {loading ? (
                             <Skeleton variant="rectangular" height={300} />
                         ) : (
                             <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={porCategoria}>
+                                <BarChart data={porArea}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="name" />
                                     <YAxis allowDecimals={false} />
@@ -290,11 +286,6 @@ const Dashboard = () => {
                     </Box>
                 </Grid>
             </Grid>
-
-            {/* Gráfico de asignados */}
-            <Box mt={4}>
-                <AssigneeChart data={assigneeData} loading={loading} />
-            </Box>
 
             {/* Performance Metrics */}
             <Box mt={4}>

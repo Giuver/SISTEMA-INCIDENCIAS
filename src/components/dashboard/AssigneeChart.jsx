@@ -51,7 +51,7 @@ const AssigneeChart = ({ data, loading }) => {
             ) : (
                 <Box display="flex" alignItems="center" justifyContent="center" height={250}>
                     <Typography color="text.secondary">
-                        No hay datos de asignaciones disponibles
+                        No hay datos de asignados disponibles
                     </Typography>
                 </Box>
             )}

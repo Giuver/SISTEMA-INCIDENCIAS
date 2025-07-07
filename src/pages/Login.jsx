@@ -38,9 +38,15 @@ const Login = () => {
             });
 
             if (res.data.token) {
+                console.log('✅ Token recibido:', res.data.token.substring(0, 50) + '...');
+                console.log('✅ Role recibido:', res.data.role);
+                console.log('✅ UserId recibido:', res.data.userId);
+
                 localStorage.setItem('token', res.data.token);
                 localStorage.setItem('role', res.data.role);
                 localStorage.setItem('userId', res.data.userId);
+
+                console.log('💾 Token guardado en localStorage');
                 navigate('/');
             } else {
                 setError('Error en la respuesta del servidor');
