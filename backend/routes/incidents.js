@@ -5,6 +5,7 @@ const User = require('../models/User');
 const multer = require('multer');
 const path = require('path');
 const { auth } = require('../middleware/auth');
+const { ROLES, requirePermission, requireAnyPermission } = require('../config/roles');
 const NotificationService = require('../utils/notificationService');
 const { logAudit, logMinorAction, logCriticalAction, AUDIT_ACTIONS } = require('../utils/auditLogger');
 const fs = require('fs');
@@ -124,8 +125,42 @@ function addEstadoAlias(incident) {
     return obj;
 }
 
+// Middleware para filtrar incidencias según el rol del usuario
+const filterIncidentsByRole = (req, res, next) => {
+    const userRole = req.user.role;
+
+    // Construir filtro según el rol
+    let filter = {};
+
+    switch (userRole) {
+        case ROLES.ADMIN:
+            // Los administradores ven todas las incidencias
+            break;
+        case ROLES.SOPORTE:
+            // Los técnicos ven incidencias asignadas a ellos o sin asignar
+            filter = {
+                $or: [
+                    { assignedTo: req.user.id },
+                    { assignedTo: null }
+                ]
+            };
+            break;
+        case ROLES.USUARIO:
+            // Los usuarios ven todas las incidencias (solo lectura)
+            break;
+        default:
+            return res.status(403).json({
+                message: 'Rol no válido',
+                error: 'INVALID_ROLE'
+            });
+    }
+
+    req.incidentFilter = filter;
+    next();
+};
+
 // Obtener una incidencia específica
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', [auth, requireAnyPermission(['incidents:read:all', 'incidents:read:assigned', 'incidents:read:own'])], async (req, res) => {
     try {
         const incident = await Incident.findById(req.params.id)
             .populate('createdBy', 'name email')
@@ -134,6 +169,29 @@ router.get('/:id', auth, async (req, res) => {
 
         if (!incident) {
             return res.status(404).json({ message: 'Incidencia no encontrada' });
+        }
+
+        // Verificar permisos específicos para esta incidencia
+        const userRole = req.user.role;
+        let canAccess = false;
+
+        switch (userRole) {
+            case ROLES.ADMIN:
+                canAccess = true; // Los administradores pueden ver todas
+                break;
+            case ROLES.SOPORTE:
+                canAccess = !incident.assignedTo || incident.assignedTo._id.toString() === req.user.id;
+                break;
+            case ROLES.USUARIO:
+                canAccess = incident.createdBy._id.toString() === req.user.id;
+                break;
+        }
+
+        if (!canAccess) {
+            return res.status(403).json({
+                message: 'No tienes permiso para ver esta incidencia',
+                error: 'INCIDENT_ACCESS_DENIED'
+            });
         }
 
         // Auditoría de visualización
@@ -157,18 +215,10 @@ router.get('/:id', auth, async (req, res) => {
     }
 });
 
-// Obtener todas las incidencias
-router.get('/', auth, async (req, res) => {
+// Obtener todas las incidencias (filtradas por rol)
+router.get('/', [auth, filterIncidentsByRole], async (req, res) => {
     try {
-        const token = req.header('Authorization')?.replace('Bearer ', '');
-        if (!token) {
-            return res.status(401).json({
-                message: 'No hay token de autenticación',
-                error: 'AUTH_NO_TOKEN'
-            });
-        }
-
-        const incidents = await Incident.find()
+        const incidents = await Incident.find(req.incidentFilter)
             .populate('assignedTo', 'name email')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
@@ -197,12 +247,40 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Obtener estadísticas de incidencias
-router.get('/stats', async (req, res) => {
+router.get('/stats', [auth], async (req, res) => {
     try {
-        const total = await Incident.countDocuments();
-        const pendientes = await Incident.countDocuments({ status: 'pendiente' });
-        const enProceso = await Incident.countDocuments({ status: 'en_proceso' });
-        const resueltas = await Incident.countDocuments({ status: 'resuelto' });
+        const userRole = req.user.role;
+        let filter = {};
+
+        // Filtrar según el rol del usuario
+        switch (userRole) {
+            case ROLES.ADMIN:
+                // Los administradores ven todas las incidencias
+                break;
+            case ROLES.SOPORTE:
+                // Los técnicos ven incidencias asignadas a ellos o sin asignar
+                filter = {
+                    $or: [
+                        { assignedTo: req.user.id },
+                        { assignedTo: null }
+                    ]
+                };
+                break;
+            case ROLES.USUARIO:
+                // Los usuarios solo ven sus propias incidencias
+                filter = { createdBy: req.user.id };
+                break;
+            default:
+                return res.status(403).json({
+                    message: 'Rol no válido',
+                    error: 'INVALID_ROLE'
+                });
+        }
+
+        const total = await Incident.countDocuments(filter);
+        const pendientes = await Incident.countDocuments({ ...filter, status: 'pendiente' });
+        const enProceso = await Incident.countDocuments({ ...filter, status: 'en_proceso' });
+        const resueltas = await Incident.countDocuments({ ...filter, status: 'resuelto' });
 
         res.json({
             total,
@@ -313,7 +391,7 @@ router.post('/', auth, upload.single('attachment'), handleMulterError, async (re
 });
 
 // Actualizar una incidencia
-router.patch('/:id', upload.single('attachment'), handleMulterError, async (req, res) => {
+router.patch('/:id', [auth, requireAnyPermission(['incidents:update:all', 'incidents:update:assigned'])], upload.single('attachment'), handleMulterError, async (req, res) => {
     try {
         const incident = await Incident.findById(req.params.id);
         if (!incident) {
@@ -412,7 +490,7 @@ router.patch('/:id', upload.single('attachment'), handleMulterError, async (req,
 });
 
 // Eliminar una incidencia
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', [auth, requirePermission('incidents:delete')], async (req, res) => {
     try {
         const incident = await Incident.findById(req.params.id);
         if (!incident) {
@@ -442,7 +520,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Asignar incidencia a un usuario de soporte
-router.patch('/:id/asignar', auth, async (req, res) => {
+router.patch('/:id/asignar', [auth, requirePermission('incidents:assign')], async (req, res) => {
     try {
         const incident = await Incident.findById(req.params.id);
         if (!incident) return res.status(404).json({ message: 'Incidencia no encontrada' });
@@ -487,7 +565,7 @@ router.patch('/:id/asignar', auth, async (req, res) => {
 });
 
 // Cambiar estado de la incidencia (en_proceso, resuelto, cerrado)
-router.patch('/:id/estado', auth, async (req, res) => {
+router.patch('/:id/estado', [auth, requireAnyPermission(['incidents:update:all', 'incidents:update:assigned'])], async (req, res) => {
     try {
         const incident = await Incident.findById(req.params.id);
         if (!incident) return res.status(404).json({ message: 'Incidencia no encontrada' });

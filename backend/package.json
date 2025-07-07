@@ -16,7 +16,8 @@
         "test:risk:critical": "jest tests/riskBasedTests.js --testNamePattern=\"CRITICAL RISK\"",
         "test:risk:high": "jest tests/riskBasedTests.js --testNamePattern=\"HIGH RISK\"",
         "lint": "eslint . --ext .js",
-        "lint:fix": "eslint . --ext .js --fix"
+        "lint:fix": "eslint . --ext .js --fix",
+        "create:test-users": "node scripts/createTestUsers.js"
     },
     "dependencies": {
         "@mui/icons-material": "^7.1.1",

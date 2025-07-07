@@ -3,7 +3,8 @@ const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { auth, authorize } = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
+const { requirePermission, requireAnyPermission } = require('../config/roles');
 const NotificationService = require('../utils/notificationService');
 const { logAudit } = require('../utils/auditLogger');
 
@@ -28,7 +29,7 @@ router.get('/verify', auth, async (req, res) => {
 });
 
 // Registro de usuario (solo admin)
-router.post('/register', auth, authorize('admin'), async (req, res) => {
+router.post('/register', [auth, requirePermission('users:manage')], async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
 
@@ -112,7 +113,7 @@ router.post('/login', async (req, res) => {
 });
 
 // Obtener todos los usuarios (solo para administradores)
-router.get('/', async (req, res) => {
+router.get('/', [auth, requirePermission('users:manage')], async (req, res) => {
     try {
         const users = await User.find().select('-password');
         res.json(users);
@@ -121,9 +122,20 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Obtener un usuario específico
-router.get('/:id', async (req, res) => {
+// Obtener un usuario específico (solo admin o el propio usuario)
+router.get('/:id', auth, async (req, res) => {
     try {
+        // Verificar permisos
+        const isAdmin = req.user.role === 'admin';
+        const isOwnUser = req.user.id === req.params.id;
+
+        if (!isAdmin && !isOwnUser) {
+            return res.status(403).json({
+                message: 'No tienes permisos para ver este usuario',
+                error: 'INSUFFICIENT_PERMISSIONS'
+            });
+        }
+
         const user = await User.findById(req.params.id).select('-password');
         if (!user) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -134,38 +146,62 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Actualizar un usuario
-router.patch('/:id', async (req, res) => {
+// Actualizar un usuario (solo admin o el propio usuario)
+router.patch('/:id', auth, async (req, res) => {
     try {
+        // Verificar permisos
+        const isAdmin = req.user.role === 'admin';
+        const isOwnUser = req.user.id === req.params.id;
+
+        if (!isAdmin && !isOwnUser) {
+            return res.status(403).json({
+                message: 'No tienes permisos para actualizar este usuario',
+                error: 'INSUFFICIENT_PERMISSIONS'
+            });
+        }
+
+        // Los usuarios no admin solo pueden actualizar su propio nombre y email
+        if (!isAdmin && (req.body.role || req.body.password)) {
+            return res.status(403).json({
+                message: 'No puedes cambiar tu rol o contraseña',
+                error: 'INSUFFICIENT_PERMISSIONS'
+            });
+        }
+
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
+
         const before = { name: user.name, email: user.email, role: user.role };
+
         if (req.body.name) user.name = req.body.name;
         if (req.body.email) user.email = req.body.email;
-        if (req.body.role) user.role = req.body.role;
+        if (req.body.role && isAdmin) user.role = req.body.role;
         if (req.body.password) {
             const salt = await bcrypt.genSalt(10);
             user.password = await bcrypt.hash(req.body.password, salt);
         }
+
         const updatedUser = await user.save();
+
         // Auditoría
         logAudit({
-            user: req.user ? req.user.id : null,
+            user: req.user.id,
             action: 'actualizar',
             entity: 'User',
             entityId: updatedUser._id,
             changes: { before, after: req.body }
         });
+
         res.json(updatedUser);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
 });
 
-// Eliminar un usuario
-router.delete('/:id', auth, async (req, res) => {
+// Eliminar un usuario (solo admin)
+router.delete('/:id', [auth, requirePermission('users:manage')], async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) {
@@ -176,7 +212,8 @@ router.delete('/:id', auth, async (req, res) => {
         const deletedBy = await User.findById(req.user.id);
         await NotificationService.createUserDeletedNotification(user, deletedBy);
 
-        await user.remove();
+        await user.deleteOne(); // Usando deleteOne en lugar de remove que está deprecado
+
         // Auditoría
         logAudit({
             user: req.user.id,

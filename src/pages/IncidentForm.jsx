@@ -22,6 +22,7 @@ import { AttachFile as AttachFileIcon } from '@mui/icons-material';
 import axios from 'axios';
 import { useNotification } from '../utils/notification';
 import LoaderOverlay from '../components/LoaderOverlay';
+import sessionManager from '../utils/sessionManager';
 
 const prioridades = ['Baja', 'Media', 'Alta', 'Crítica'];
 
@@ -31,9 +32,13 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
     const id = propId || params.id;
     const navigate = useNavigate();
 
+    const authData = sessionManager.getAuthData();
+    const token = authData?.token;
+    const userRole = authData?.role || 'usuario';
+    const userId = authData?.userId || '';
+
     // Control de permisos por rol
     // Solo admin y soporte pueden editar incidencias existentes
-    const userRole = localStorage.getItem('role') || 'usuario';
     const canManageIncidents = userRole === 'admin' || userRole === 'soporte';
     const isReadOnly = id && !canManageIncidents; // Solo lectura si es edición y no tiene permisos
 
@@ -134,7 +139,6 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
 
     const fetchAreas = async () => {
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.get('/api/areas', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -147,7 +151,6 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
     const fetchIncidencia = async () => {
         if (!id) return;
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.get(`/api/incidents/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -169,11 +172,14 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
     useEffect(() => {
         fetchAreas();
         fetchIncidencia();
-        // Cargar usuarios
-        const token = localStorage.getItem('token');
-        axios.get('/api/users', { headers: { Authorization: `Bearer ${token}` } })
-            .then(res => setUsuarios(res.data))
-            .catch(() => setUsuarios([]));
+        // Cargar usuarios solo si es admin o soporte
+        if (userRole === 'admin' || userRole === 'soporte') {
+            axios.get('/api/users', { headers: { Authorization: `Bearer ${token}` } })
+                .then(res => setUsuarios(res.data))
+                .catch(() => setUsuarios([]));
+        } else {
+            setUsuarios([]);
+        }
     }, [id]);
 
     const handleChange = (e) => {
@@ -251,7 +257,6 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
             return;
         }
         try {
-            const token = localStorage.getItem('token');
             const formData = new FormData();
             formData.append('subject', form.asunto);
             formData.append('description', form.descripcion);

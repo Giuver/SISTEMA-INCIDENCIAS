@@ -5,6 +5,7 @@ import {
 import { Edit, Delete, Add } from '@mui/icons-material';
 import axios from 'axios';
 import { useNotification } from '../utils/notification';
+import sessionManager from '../utils/sessionManager';
 
 const roles = [
     { value: 'usuario', label: 'Usuario' },
@@ -24,12 +25,12 @@ const UserManagement = () => {
 
     // Control de permisos por rol
     // Solo admin puede gestionar usuarios
-    const userRole = localStorage.getItem('role') || 'usuario';
+    const userRole = sessionManager.getAuthData()?.role || 'usuario';
     const canManageUsers = userRole === 'admin';
 
     const fetchUsers = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionManager.getAuthData()?.token;
             const res = await axios.get('/api/users', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -74,7 +75,7 @@ const UserManagement = () => {
         e.preventDefault();
         setError('');
         setSuccess('');
-        const token = localStorage.getItem('token');
+        const token = sessionManager.getAuthData()?.token;
         try {
             if (editingUser) {
                 // Editar usuario
@@ -112,7 +113,7 @@ const UserManagement = () => {
     const handleDeleteConfirm = async () => {
         const id = deleteDialog.user._id;
         setDeleteDialog({ open: false, user: null });
-        const token = localStorage.getItem('token');
+        const token = sessionManager.getAuthData()?.token;
         try {
             await axios.delete(`/api/users/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }

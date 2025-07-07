@@ -32,6 +32,7 @@ import {
 import axios from 'axios';
 import { useNotification } from '../utils/notification';
 import SendIcon from '@mui/icons-material/Send';
+import sessionManager from '../utils/sessionManager';
 
 const statusColors = {
     pendiente: 'warning',
@@ -67,14 +68,16 @@ const IncidentDetail = () => {
     const [sendingComment, setSendingComment] = useState(false);
     const notify = useNotification();
 
-    // Simulación de rol (en producción, obtener del contexto de auth)
-    const userRole = localStorage.getItem('role') || 'usuario';
-    const userId = localStorage.getItem('userId') || '';
+    const authData = sessionManager.getAuthData();
+    const token = authData?.token;
+    const userRole = authData?.role || 'usuario';
+    const userId = authData?.userId || '';
 
     // Control de permisos por rol
     // Solo admin y soporte pueden realizar acciones sobre incidencias
     const canManageIncidents = userRole === 'admin' || userRole === 'soporte';
-    const isReadOnly = !canManageIncidents;
+    const canEditIncidents = userRole === 'admin' || userRole === 'soporte';
+    const isReadOnly = !canEditIncidents;
 
     useEffect(() => {
         const fetchIncident = async () => {
@@ -91,7 +94,6 @@ const IncidentDetail = () => {
         const fetchComments = async () => {
             setLoadingComments(true);
             try {
-                const token = localStorage.getItem('token');
                 const res = await axios.get(`/api/incidents/${id}/comentarios`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -107,7 +109,13 @@ const IncidentDetail = () => {
     }, [id, success]);
 
     useEffect(() => {
-        axios.get('/api/users').then(res => setUsers(res.data));
+        // Solo cargar usuarios si es admin o soporte
+        const userRole = localStorage.getItem('role');
+        if (userRole === 'admin' || userRole === 'soporte') {
+            axios.get('/api/users').then(res => setUsers(res.data));
+        } else {
+            setUsers([]);
+        }
     }, []);
 
     const handleStatusChange = async () => {
@@ -116,7 +124,7 @@ const IncidentDetail = () => {
                 status: newStatus,
                 comment
             }, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                headers: { Authorization: `Bearer ${token}` }
             });
             setSuccess('Estado actualizado');
             notify('Estado actualizado', 'success');
@@ -133,7 +141,7 @@ const IncidentDetail = () => {
             await axios.patch(`/api/incidents/${id}/asignar`, {
                 assignedTo: assignTo
             }, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                headers: { Authorization: `Bearer ${token}` }
             });
             setSuccess('Incidencia asignada');
             notify('Incidencia asignada', 'success');
@@ -152,7 +160,7 @@ const IncidentDetail = () => {
                 solution,
                 comment: 'Solución registrada'
             }, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                headers: { Authorization: `Bearer ${token}` }
             });
             setSuccess('Solución enviada exitosamente');
             setSolution('');
