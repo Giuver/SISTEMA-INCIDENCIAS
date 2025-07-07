@@ -32,13 +32,7 @@ const QuickActions = ({ onAction }) => {
             color: theme.palette.success.main,
             action: 'new-incident'
         },
-        {
-            title: 'Asignar Incidencias',
-            description: 'Gestionar asignaciones',
-            icon: <Assignment />,
-            color: theme.palette.primary.main,
-            action: 'assign-incidents'
-        },
+
         {
             title: 'Ver Reportes',
             description: 'Generar reportes detallados',
@@ -61,11 +55,11 @@ const QuickActions = ({ onAction }) => {
             action: 'users'
         },
         {
-            title: 'Categorías',
-            description: 'Gestionar categorías de incidencias',
+            title: 'Áreas',
+            description: 'Gestionar áreas de incidencias',
             icon: <Category />,
             color: theme.palette.error.main,
-            action: 'categories'
+            action: 'areas'
         }
     ];
 

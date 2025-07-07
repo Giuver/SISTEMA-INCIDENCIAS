@@ -100,19 +100,18 @@ const SystemAlerts = ({ alerts, loading }) => {
                         </ListItemIcon>
                         <ListItemText
                             primary={
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <Typography variant="subtitle1" fontWeight={600}>
-                                        {alert.message}
-                                    </Typography>
+                                <Typography component="span" variant="subtitle1" fontWeight={600}>
+                                    {alert.message}
                                     {alert.count && (
                                         <Chip
                                             label={alert.count}
                                             size="small"
                                             color={alert.type}
                                             variant="filled"
+                                            sx={{ ml: 1 }}
                                         />
                                     )}
-                                </Box>
+                                </Typography>
                             }
                             secondary={
                                 <Typography variant="body2" color="text.secondary">

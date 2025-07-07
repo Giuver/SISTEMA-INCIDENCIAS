@@ -4,7 +4,7 @@ const Audit = require('../models/Audit');
 const { auth, authorize } = require('../middleware/auth');
 
 // Obtener registros de auditoría (solo admin)
-router.get('/', [auth, authorize(['admin'])], async (req, res) => {
+router.get('/', [auth, authorize('admin')], async (req, res) => {
     try {
         const {
             page = 1,

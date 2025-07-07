@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const { auth } = require('../middleware/auth');
 const NotificationService = require('../utils/notificationService');
-const { logAudit } = require('../utils/auditLogger');
+const { logAudit, logMinorAction, logCriticalAction, AUDIT_ACTIONS } = require('../utils/auditLogger');
 const fs = require('fs');
 
 // Configuración de multer para subida de archivos
@@ -20,29 +20,101 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
-        // Generar un nombre de archivo seguro
+        // Generar un nombre de archivo seguro y validado
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
+        const safeExtension = path.extname(file.originalname).toLowerCase();
+        cb(null, `incident-${uniqueSuffix}${safeExtension}`);
     }
 });
 
+// Validación estricta de archivos
 const fileFilter = (req, file, cb) => {
-    // Validar tipos de archivo permitidos
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'text/plain'];
-    if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error('Tipo de archivo no permitido'), false);
+    // Validar tipos de archivo permitidos con MIME types específicos
+    const allowedMimeTypes = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/gif',
+        'application/pdf',
+        'application/msword', // .doc
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+        'application/vnd.ms-excel', // .xls
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'text/plain',
+        'text/csv'
+    ];
+
+    // Validar extensión de archivo
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'];
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+
+    // Validar nombre de archivo (evitar caracteres peligrosos)
+    const fileName = file.originalname;
+    const dangerousChars = /[<>:"/\\|?*]/;
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+        return cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}. Tipos permitidos: ${allowedMimeTypes.join(', ')}`), false);
     }
+
+    if (!allowedExtensions.includes(fileExtension)) {
+        return cb(new Error(`Extensión de archivo no permitida: ${fileExtension}. Extensiones permitidas: ${allowedExtensions.join(', ')}`), false);
+    }
+
+    if (dangerousChars.test(fileName)) {
+        return cb(new Error('El nombre del archivo contiene caracteres no permitidos'), false);
+    }
+
+    if (fileName.length > 100) {
+        return cb(new Error('El nombre del archivo es demasiado largo (máximo 100 caracteres)'), false);
+    }
+
+    // Validar tamaño del archivo (5MB máximo)
+    if (file.size > 5 * 1024 * 1024) {
+        return cb(new Error('El archivo es demasiado grande (máximo 5MB)'), false);
+    }
+
+    cb(null, true);
 };
 
 const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB límite
+        fileSize: 5 * 1024 * 1024, // 5MB límite
+        files: 1 // Solo un archivo por incidencia
     }
 });
+
+// Middleware para manejar errores de multer
+const handleMulterError = (error, req, res, next) => {
+    if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                message: 'El archivo es demasiado grande (máximo 5MB)',
+                error: 'FILE_TOO_LARGE'
+            });
+        }
+        if (error.code === 'LIMIT_FILE_COUNT') {
+            return res.status(400).json({
+                message: 'Demasiados archivos (máximo 1 archivo por incidencia)',
+                error: 'TOO_MANY_FILES'
+            });
+        }
+        return res.status(400).json({
+            message: 'Error al subir el archivo',
+            error: error.message
+        });
+    }
+
+    if (error) {
+        return res.status(400).json({
+            message: error.message,
+            error: 'FILE_VALIDATION_ERROR'
+        });
+    }
+
+    next();
+};
 
 // Helper para agregar alias 'estado' a cada incidencia
 function addEstadoAlias(incident) {
@@ -51,6 +123,39 @@ function addEstadoAlias(incident) {
     obj.estado = obj.status;
     return obj;
 }
+
+// Obtener una incidencia específica
+router.get('/:id', auth, async (req, res) => {
+    try {
+        const incident = await Incident.findById(req.params.id)
+            .populate('createdBy', 'name email')
+            .populate('assignedTo', 'name email')
+            .populate('area', 'name');
+
+        if (!incident) {
+            return res.status(404).json({ message: 'Incidencia no encontrada' });
+        }
+
+        // Auditoría de visualización
+        if (req.user && req.user.id) {
+            logMinorAction({
+                user: req.user.id,
+                action: AUDIT_ACTIONS.INCIDENT_VIEW,
+                details: {
+                    incidentId: req.params.id,
+                    incidentSubject: incident.subject,
+                    incidentStatus: incident.status
+                },
+                ipAddress: req.ip
+            });
+        }
+
+        res.json(incident);
+    } catch (error) {
+        console.error('Error obteniendo incidencia:', error);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
 
 // Obtener todas las incidencias
 router.get('/', auth, async (req, res) => {
@@ -124,12 +229,12 @@ router.get('/recent', async (req, res) => {
 });
 
 // Crear una nueva incidencia
-router.post('/', auth, upload.single('attachment'), async (req, res) => {
+router.post('/', auth, upload.single('attachment'), handleMulterError, async (req, res) => {
     try {
-        const { subject, description, category, priority } = req.body;
+        const { subject, description, area, priority, assignedTo, tags } = req.body;
 
         // Validar campos requeridos
-        if (!subject || !description || !category || !priority) {
+        if (!subject || !description || !area || !priority) {
             return res.status(400).json({
                 message: 'Todos los campos son obligatorios',
                 error: 'MISSING_FIELDS'
@@ -139,10 +244,12 @@ router.post('/', auth, upload.single('attachment'), async (req, res) => {
         const incident = new Incident({
             subject,
             description,
-            category,
+            area,
             priority,
             status: 'pendiente',
             createdBy: req.user.id,
+            assignedTo: Array.isArray(assignedTo) ? assignedTo : assignedTo ? [assignedTo] : [],
+            tags: Array.isArray(tags) ? tags : tags ? [tags] : [],
             attachment: req.file ? `/uploads/${req.file.filename}` : null,
             history: [{
                 user: req.user.id,
@@ -158,14 +265,32 @@ router.post('/', auth, upload.single('attachment'), async (req, res) => {
         const creator = await User.findById(req.user.id);
         await NotificationService.createIncidentCreatedNotification(newIncident, creator);
 
+        // Notificar a todos los asignados
+        if (incident.assignedTo.length > 0) {
+            const assignedUsers = await User.find({ _id: { $in: incident.assignedTo } });
+            const assignedBy = await User.findById(req.user.id);
+            await NotificationService.createIncidentAssignedNotification(incident, assignedUsers, assignedBy);
+        }
+
         // Auditoría
-        logAudit({
-            user: req.user.id,
-            action: 'crear',
-            entity: 'Incident',
-            entityId: newIncident._id,
-            changes: { subject, description, category, priority }
-        });
+        if (req.user && req.user.id) {
+            logAudit({
+                user: req.user.id,
+                action: AUDIT_ACTIONS.INCIDENT_CREATE,
+                entity: 'Incident',
+                entityId: newIncident._id,
+                changes: { subject, description, area, priority },
+                details: {
+                    assignedTo: incident.assignedTo.length,
+                    hasAttachment: !!req.file,
+                    attachmentType: req.file ? req.file.mimetype : null,
+                    tagsCount: incident.tags.length
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('User-Agent'),
+                priority: 'high'
+            });
+        }
 
         res.status(201).json(newIncident);
     } catch (error) {
@@ -187,24 +312,8 @@ router.post('/', auth, upload.single('attachment'), async (req, res) => {
     }
 });
 
-// Obtener una incidencia específica
-router.get('/:id', async (req, res) => {
-    try {
-        const incident = await Incident.findById(req.params.id)
-            .populate('assignedTo', 'name email')
-            .populate('createdBy', 'name email');
-        if (incident) {
-            res.json(addEstadoAlias(incident));
-        } else {
-            res.status(404).json({ message: 'Incidencia no encontrada' });
-        }
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-});
-
 // Actualizar una incidencia
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', upload.single('attachment'), handleMulterError, async (req, res) => {
     try {
         const incident = await Incident.findById(req.params.id);
         if (!incident) {
@@ -255,27 +364,46 @@ router.patch('/:id', async (req, res) => {
 
         // Actualizar otros campos
         if (req.body.status && req.body.status !== 'resuelto') incident.status = req.body.status;
-        if (req.body.assignedTo) incident.assignedTo = req.body.assignedTo;
+        if (req.body.area) incident.area = req.body.area;
+        if (req.body.assignedTo) incident.assignedTo = Array.isArray(req.body.assignedTo) ? req.body.assignedTo : req.body.assignedTo ? [req.body.assignedTo] : [];
         if (req.body.solution) incident.solution = req.body.solution;
+        if (req.body.tags !== undefined) {
+            let tags = req.body.tags;
+            if (typeof tags === 'string') tags = [tags];
+            incident.tags = Array.isArray(tags) ? tags : tags ? [tags] : [];
+        }
 
-        // Registrar en el historial
-        incident.history.push({
-            user: req.user ? req.user.id : 'system',
-            action: 'Actualización',
-            comment: `Estado actualizado a: ${incident.status}`,
-            date: new Date()
-        });
+        // En el endpoint PATCH /:id, reemplazar el push al historial:
+        if (req.user && req.user.id) {
+            incident.history.push({
+                user: req.user.id,
+                action: 'Actualización',
+                comment: `Estado actualizado a: ${incident.status}`,
+                date: new Date()
+            });
+        }
 
         const updatedIncident = await incident.save();
 
         // Auditoría
-        logAudit({
-            user: req.user ? req.user.id : null,
-            action: 'actualizar',
-            entity: 'Incident',
-            entityId: updatedIncident._id,
-            changes: { before, after: req.body }
-        });
+        if (req.user && req.user.id) {
+            logAudit({
+                user: req.user.id,
+                action: AUDIT_ACTIONS.INCIDENT_UPDATE,
+                entity: 'Incident',
+                entityId: updatedIncident._id,
+                changes: { before, after: req.body },
+                details: {
+                    statusChanged: before.status !== updatedIncident.status,
+                    assignedChanged: JSON.stringify(before.assignedTo) !== JSON.stringify(updatedIncident.assignedTo),
+                    hasAttachment: !!req.file,
+                    attachmentType: req.file ? req.file.mimetype : null
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('User-Agent'),
+                priority: 'normal'
+            });
+        }
 
         res.json(addEstadoAlias(updatedIncident));
     } catch (error) {
@@ -293,13 +421,20 @@ router.delete('/:id', async (req, res) => {
         await incident.remove();
 
         // Auditoría
-        logAudit({
-            user: req.user ? req.user.id : null,
-            action: 'eliminar',
-            entity: 'Incident',
-            entityId: req.params.id,
-            changes: { deleted: true }
-        });
+        if (req.user && req.user.id) {
+            logCriticalAction({
+                user: req.user.id,
+                action: AUDIT_ACTIONS.INCIDENT_DELETE,
+                entity: 'Incident',
+                entityId: req.params.id,
+                changes: { deleted: true },
+                details: {
+                    incidentSubject: incident.subject,
+                    incidentStatus: incident.status,
+                    hasAttachment: !!incident.attachment
+                }
+            });
+        }
         res.json({ message: 'Incidencia eliminada' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -312,30 +447,39 @@ router.patch('/:id/asignar', auth, async (req, res) => {
         const incident = await Incident.findById(req.params.id);
         if (!incident) return res.status(404).json({ message: 'Incidencia no encontrada' });
         const previousAssigned = incident.assignedTo;
-        incident.assignedTo = req.body.assignedTo;
+        incident.assignedTo = Array.isArray(req.body.assignedTo) ? req.body.assignedTo : req.body.assignedTo ? [req.body.assignedTo] : [];
         incident.history.push({
             user: req.user.id,
             action: 'Asignación',
-            comment: `Asignada a usuario ${req.body.assignedTo}`,
+            comment: `Asignada a usuarios ${incident.assignedTo.join(', ')}`,
             date: new Date()
         });
         const updatedIncident = await incident.save();
 
-        // Crear notificación automática si se asignó a alguien
-        if (req.body.assignedTo && req.body.assignedTo !== previousAssigned) {
-            const assignedUser = await User.findById(req.body.assignedTo);
+        // Notificar a todos los asignados
+        if (incident.assignedTo.length > 0) {
+            const assignedUsers = await User.find({ _id: { $in: incident.assignedTo } });
             const assignedBy = await User.findById(req.user.id);
-            await NotificationService.createIncidentAssignedNotification(updatedIncident, assignedUser, assignedBy);
+            await NotificationService.createIncidentAssignedNotification(incident, assignedUsers, assignedBy);
         }
 
         // Auditoría
-        logAudit({
-            user: req.user.id,
-            action: 'asignar',
-            entity: 'Incident',
-            entityId: updatedIncident._id,
-            changes: { from: previousAssigned, to: req.body.assignedTo }
-        });
+        if (req.user && req.user.id) {
+            logAudit({
+                user: req.user.id,
+                action: AUDIT_ACTIONS.INCIDENT_ASSIGN,
+                entity: 'Incident',
+                entityId: updatedIncident._id,
+                changes: { from: previousAssigned, to: req.body.assignedTo },
+                details: {
+                    assignedCount: incident.assignedTo.length,
+                    previousCount: previousAssigned.length
+                },
+                ipAddress: req.ip,
+                userAgent: req.get('User-Agent'),
+                priority: 'normal'
+            });
+        }
         res.json(updatedIncident);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -349,6 +493,13 @@ router.patch('/:id/estado', auth, async (req, res) => {
         if (!incident) return res.status(404).json({ message: 'Incidencia no encontrada' });
         const previousStatus = incident.status;
         const { status, comment } = req.body;
+
+        // Control de permisos granulares
+        const userRole = req.user?.role;
+        if ((status === 'resuelto' || status === 'cerrado') && !(userRole === 'admin' || userRole === 'soporte')) {
+            return res.status(403).json({ message: 'Solo soporte o admin pueden cerrar o resolver incidencias.' });
+        }
+
         if (status) incident.status = status;
         if (req.body.solution) incident.solution = req.body.solution;
         const updatedIncident = await incident.save();
@@ -375,6 +526,75 @@ router.patch('/:id/estado', auth, async (req, res) => {
         res.json(addEstadoAlias(updatedIncident));
     } catch (error) {
         res.status(400).json({ message: error.message });
+    }
+});
+
+// Obtener comentarios de una incidencia
+router.get('/:id/comentarios', auth, async (req, res) => {
+    try {
+        const incident = await Incident.findById(req.params.id).populate('comments.user', 'name email');
+        if (!incident) return res.status(404).json({ message: 'Incidencia no encontrada' });
+        res.json(incident.comments || []);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Agregar comentario a una incidencia
+router.post('/:id/comentarios', auth, async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text || text.trim().length < 2) {
+            return res.status(400).json({ message: 'El comentario no puede estar vacío.' });
+        }
+        const incident = await Incident.findById(req.params.id);
+        if (!incident) return res.status(404).json({ message: 'Incidencia no encontrada' });
+        const comment = {
+            user: req.user.id,
+            text,
+            date: new Date()
+        };
+        incident.comments.push(comment);
+        await incident.save();
+        await incident.populate('comments.user', 'name email');
+        res.status(201).json(incident.comments[incident.comments.length - 1]);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Descargar archivo adjunto
+router.get('/:id/attachment', auth, async (req, res) => {
+    try {
+        const incident = await Incident.findById(req.params.id);
+
+        if (!incident) {
+            return res.status(404).json({ message: 'Incidencia no encontrada' });
+        }
+
+        if (!incident.attachment) {
+            return res.status(404).json({ message: 'No hay archivo adjunto' });
+        }
+
+        // Auditoría de descarga de archivo
+        if (req.user && req.user.id) {
+            logMinorAction({
+                user: req.user.id,
+                action: AUDIT_ACTIONS.INCIDENT_ATTACHMENT_DOWNLOAD,
+                details: {
+                    incidentId: req.params.id,
+                    incidentSubject: incident.subject,
+                    fileName: incident.attachment.split('/').pop()
+                },
+                ipAddress: req.ip
+            });
+        }
+
+        const filePath = path.join(__dirname, '..', incident.attachment);
+        res.download(filePath);
+    } catch (error) {
+        console.error('Error descargando archivo:', error);
+        res.status(500).json({ message: 'Error al descargar el archivo' });
     }
 });
 

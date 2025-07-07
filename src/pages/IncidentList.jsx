@@ -25,7 +25,8 @@ import {
     DialogContent,
     DialogActions,
     Grid,
-    Divider
+    Divider,
+    CircularProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -36,6 +37,9 @@ import { useNotification } from '../utils/notification';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import * as XLSX from 'xlsx';
 import IncidentForm from './IncidentForm';
+import LoaderOverlay from '../components/LoaderOverlay';
+import PersonIcon from '@mui/icons-material/Person';
+import EditIcon from '@mui/icons-material/Edit';
 
 const statusColors = {
     pendiente: 'warning',
@@ -63,6 +67,10 @@ const IncidentList = () => {
     const role = localStorage.getItem('role');
     const userId = localStorage.getItem('userId');
     const notify = useNotification();
+
+    // Control de permisos por rol
+    // Solo admin y soporte pueden realizar acciones sobre incidencias
+    const canManageIncidents = role === 'admin' || role === 'soporte';
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedIncident, setSelectedIncident] = useState(null);
     const [page, setPage] = useState(0);
@@ -74,6 +82,7 @@ const IncidentList = () => {
     const [newAssigned, setNewAssigned] = useState('');
     const [solution, setSolution] = useState('');
     const [newModalOpen, setNewModalOpen] = useState(false);
+    const [rowUpdating, setRowUpdating] = useState(null);
 
     const fetchIncidents = async () => {
         try {
@@ -89,20 +98,20 @@ const IncidentList = () => {
             setIncidents(data);
         } catch (err) {
             setIncidents([]);
-            notify('Error al cargar incidencias', 'error');
+            notify('No se pudieron cargar las incidencias', 'error');
         }
     };
 
-    const fetchCategorias = async () => {
+    const fetchAreas = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('/api/categories', {
+            const res = await axios.get('/api/areas', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCategorias(res.data);
         } catch (err) {
             setCategorias([]);
-            notify('Error al cargar categorías', 'error');
+            notify('Error al cargar áreas', 'error');
         }
     };
 
@@ -121,7 +130,7 @@ const IncidentList = () => {
 
     useEffect(() => {
         fetchIncidents();
-        fetchCategorias();
+        fetchAreas();
         fetchUsuarios();
     }, []);
 
@@ -141,7 +150,7 @@ const IncidentList = () => {
         return incidents.filter(i =>
             (!filtros.estado || i.status === filtros.estado) &&
             (!filtros.prioridad || i.priority === filtros.prioridad) &&
-            (!filtros.categoria || i.category === filtros.categoria) &&
+            (!filtros.categoria || i.area === filtros.categoria) &&
             (!filtros.asignado || (i.assignedTo && i.assignedTo._id === filtros.asignado)) &&
             (!filtros.search || i.subject?.toLowerCase().includes(filtros.search.toLowerCase()))
         );
@@ -171,7 +180,7 @@ const IncidentList = () => {
             Asunto: i.subject,
             Estado: i.status,
             Prioridad: i.priority,
-            Categoría: i.category,
+            Área: i.area,
             Asignado: i.assignedTo?.name || '-',
             Fecha: new Date(i.createdAt).toLocaleDateString(),
         }));
@@ -182,6 +191,10 @@ const IncidentList = () => {
     };
 
     const handleEditIncident = (incident) => {
+        if (!canManageIncidents) {
+            notify('Usted no cuenta con estos privilegios', 'error');
+            return;
+        }
         setEditIncident(incident);
         setEditModalOpen(true);
     };
@@ -203,13 +216,13 @@ const IncidentList = () => {
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            notify('Estado actualizado', 'success');
+            notify('Estado actualizado correctamente', 'success');
             await fetchIncidents();
             setModalOpen(false);
             setSelectedIncident(null);
             setEditModalOpen(false);
         } catch (err) {
-            notify('Error al actualizar estado', 'error');
+            notify('Error al actualizar el estado', 'error');
         } finally {
             setUpdating(false);
         }
@@ -224,18 +237,39 @@ const IncidentList = () => {
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            notify('Responsable actualizado', 'success');
+            notify('Responsable asignado correctamente', 'success');
             await fetchIncidents();
             setSelectedIncident(incidents.find(i => i._id === selectedIncident._id));
         } catch (err) {
-            notify('Error al asignar', 'error');
+            notify('Error al asignar responsable', 'error');
         } finally {
             setUpdating(false);
         }
     };
 
+    // Edición rápida
+    const handleQuickEdit = async (id, field, value) => {
+        setRowUpdating(id + field);
+        try {
+            const token = localStorage.getItem('token');
+            if (field === 'assignedTo') {
+                await axios.patch(`/api/incidents/${id}/asignar`, { assignedTo: value }, { headers: { Authorization: `Bearer ${token}` } });
+                notify('Responsable actualizado', 'success');
+            } else {
+                await axios.patch(`/api/incidents/${id}`, { [field]: value }, { headers: { Authorization: `Bearer ${token}` } });
+                notify('Campo actualizado', 'success');
+            }
+            await fetchIncidents();
+        } catch (err) {
+            notify('Error al actualizar', 'error');
+        } finally {
+            setRowUpdating(null);
+        }
+    };
+
     return (
         <Container maxWidth="lg" sx={{ mt: 6 }}>
+            <LoaderOverlay open={updating || incidents.length === 0} />
             <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" gutterBottom>Listado de Incidencias</Typography>
                 <Box display="flex" gap={2} flexWrap="wrap" mb={2}>
@@ -257,8 +291,8 @@ const IncidentList = () => {
                         </Select>
                     </FormControl>
                     <FormControl sx={{ minWidth: 150 }} size="small">
-                        <InputLabel>Categoría</InputLabel>
-                        <Select name="categoria" value={filtros.categoria} label="Categoría" onChange={handleFiltro}>
+                        <InputLabel>Área</InputLabel>
+                        <Select name="categoria" value={filtros.categoria} label="Área" onChange={handleFiltro}>
                             <MenuItem value="">Todas</MenuItem>
                             {categorias.map(c => <MenuItem key={c._id} value={c.name}>{c.name}</MenuItem>)}
                         </Select>
@@ -286,32 +320,101 @@ const IncidentList = () => {
                 >
                     Exportar a Excel
                 </Button>
-                <TableContainer>
+                <TableContainer component={Paper} role="table" aria-label="Listado de incidencias">
                     <Table>
                         <TableHead>
-                            <TableRow>
-                                <TableCell>Asunto</TableCell>
-                                <TableCell>Estado</TableCell>
-                                <TableCell>Prioridad</TableCell>
-                                <TableCell>Categoría</TableCell>
-                                <TableCell>Asignado</TableCell>
-                                <TableCell>Fecha</TableCell>
-                                <TableCell align="right">Acciones</TableCell>
+                            <TableRow role="row">
+                                <TableCell role="columnheader">Asunto</TableCell>
+                                <TableCell role="columnheader">Estado</TableCell>
+                                <TableCell role="columnheader">Prioridad</TableCell>
+                                <TableCell role="columnheader">Área</TableCell>
+                                <TableCell role="columnheader">Asignado</TableCell>
+                                <TableCell role="columnheader">Fecha</TableCell>
+                                <TableCell role="columnheader" align="right">Acciones</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {filtrarIncidencias().slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((i) => (
-                                <TableRow key={i._id}>
-                                    <TableCell>{i.subject}</TableCell>
-                                    <TableCell><Chip label={i.status} color={statusColors[i.status]} /></TableCell>
-                                    <TableCell><Chip label={i.priority} color={priorityColors[i.priority]} /></TableCell>
-                                    <TableCell>{i.category}</TableCell>
-                                    <TableCell>{i.assignedTo?.name || '-'}</TableCell>
-                                    <TableCell>{new Date(i.createdAt).toLocaleDateString()}</TableCell>
-                                    <TableCell align="right">
-                                        <Button size="small" variant="outlined" onClick={() => handleViewIncident(i)}>Ver</Button>
-                                        {(role === 'admin' || role === 'soporte' || (role === 'usuario' && i.createdBy === userId)) && (
-                                            <Button size="small" variant="contained" sx={{ ml: 1 }} onClick={() => handleEditIncident(i)}>Editar</Button>
+                                <TableRow key={i._id} role="row">
+                                    <TableCell role="cell">{i.subject}</TableCell>
+                                    <TableCell role="cell">
+                                        {canManageIncidents ? (
+                                            <FormControl size="small" variant="standard">
+                                                <Select
+                                                    value={i.status}
+                                                    onChange={e => handleQuickEdit(i._id, 'status', e.target.value)}
+                                                    disabled={rowUpdating === i._id + 'status'}
+                                                    inputProps={{ 'aria-label': 'Estado de la incidencia' }}
+                                                    sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                >
+                                                    {estados.map(e => <MenuItem key={e} value={e}>{e}</MenuItem>)}
+                                                </Select>
+                                                {rowUpdating === i._id + 'status' && <CircularProgress size={18} sx={{ ml: 1 }} />}
+                                            </FormControl>
+                                        ) : (
+                                            <Chip label={i.status} color={statusColors[i.status]} sx={{ fontWeight: 'bold' }} />
+                                        )}
+                                    </TableCell>
+                                    <TableCell role="cell">
+                                        {canManageIncidents ? (
+                                            <FormControl size="small" variant="standard">
+                                                <Select
+                                                    value={i.priority}
+                                                    onChange={e => handleQuickEdit(i._id, 'priority', e.target.value)}
+                                                    disabled={rowUpdating === i._id + 'priority'}
+                                                    inputProps={{ 'aria-label': 'Prioridad de la incidencia' }}
+                                                    sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                >
+                                                    {prioridades.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                                                </Select>
+                                                {rowUpdating === i._id + 'priority' && <CircularProgress size={18} sx={{ ml: 1 }} />}
+                                            </FormControl>
+                                        ) : (
+                                            <Chip label={i.priority} color={priorityColors[i.priority]} sx={{ fontWeight: 'bold' }} />
+                                        )}
+                                    </TableCell>
+                                    <TableCell role="cell">{i.area || 'Sin área'}</TableCell>
+                                    <TableCell role="cell">
+                                        {Array.isArray(i.assignedTo) && i.assignedTo.length > 0 ? (
+                                            <Tooltip title={i.assignedTo.map(u => u.name).join(', ')} arrow>
+                                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                    {i.assignedTo.slice(0, 2).map(u => (
+                                                        <Chip key={u._id} label={u.name} size="small" color="primary" icon={<PersonIcon />} />
+                                                    ))}
+                                                    {i.assignedTo.length > 2 && (
+                                                        <Chip label={`+${i.assignedTo.length - 2}`} size="small" color="primary" />
+                                                    )}
+                                                </Box>
+                                            </Tooltip>
+                                        ) : (
+                                            <Chip label="Sin asignar" size="small" color="default" variant="outlined" />
+                                        )}
+                                    </TableCell>
+                                    <TableCell role="cell">{new Date(i.createdAt).toLocaleDateString()}</TableCell>
+                                    <TableCell role="cell" align="right">
+                                        <Tooltip title="Ver detalles de la incidencia" arrow>
+                                            <IconButton
+                                                onClick={() => handleViewIncident(i)}
+                                                size="small"
+                                                aria-label="Ver detalles de la incidencia"
+                                                tabIndex={0}
+                                                sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                            >
+                                                <VisibilityIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        {canManageIncidents && (
+                                            <Tooltip title="Editar incidencia" arrow>
+                                                <IconButton
+                                                    onClick={() => handleEditIncident(i)}
+                                                    size="small"
+                                                    aria-label="Editar incidencia"
+                                                    tabIndex={0}
+                                                    sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                >
+                                                    <EditIcon />
+                                                </IconButton>
+                                            </Tooltip>
                                         )}
                                     </TableCell>
                                 </TableRow>
@@ -340,8 +443,8 @@ const IncidentList = () => {
                                     <Typography variant="h6" sx={{ mb: 1 }}>{selectedIncident.subject}</Typography>
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
-                                    <Typography variant="subtitle2" color="text.secondary">Categoría</Typography>
-                                    <Typography variant="body1" sx={{ mb: 1 }}>{selectedIncident.category}</Typography>
+                                    <Typography variant="subtitle2" color="text.secondary">Área</Typography>
+                                    <Typography variant="body1" sx={{ mb: 1 }}>{selectedIncident.area || 'Sin área'}</Typography>
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
                                     <Typography variant="subtitle2" color="text.secondary">Estado</Typography>
@@ -398,7 +501,7 @@ const IncidentList = () => {
                             ) : (
                                 <Typography color="text.secondary">Sin historial</Typography>
                             )}
-                            {(role === 'admin' || role === 'soporte') && (
+                            {canManageIncidents && (
                                 <Box sx={{ mt: 2, mb: 2 }}>
                                     <FormControl fullWidth sx={{ mb: 2 }}>
                                         <InputLabel>Estado</InputLabel>

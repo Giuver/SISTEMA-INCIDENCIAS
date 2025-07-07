@@ -171,9 +171,18 @@ const NotificationCenter = () => {
     useEffect(() => {
         if (!userId) return;
         if (!socketRef.current) {
-            socketRef.current = io('http://localhost:5000');
+            const token = localStorage.getItem('token');
+            socketRef.current = io('http://localhost:5000', {
+                auth: {
+                    token: token
+                }
+            });
             socketRef.current.on('connect', () => {
+                console.log('WebSocket conectado');
                 socketRef.current.emit('authenticate', userId);
+            });
+            socketRef.current.on('connect_error', (error) => {
+                console.error('Error de conexión WebSocket:', error);
             });
             socketRef.current.on('newNotification', (notification) => {
                 notify(notification.title + ': ' + notification.message, notification.priority === 'high' ? 'error' : notification.priority === 'medium' ? 'warning' : 'info');
@@ -281,27 +290,25 @@ const NotificationCenter = () => {
                                     </ListItemIcon>
                                     <ListItemText
                                         primary={
-                                            <Box display="flex" alignItems="center" gap={1}>
-                                                <Typography variant="subtitle2" sx={{ fontWeight: notification.read ? 'normal' : 'bold' }}>
-                                                    {notification.title}
-                                                </Typography>
+                                            <Typography component="span" variant="subtitle2" sx={{ fontWeight: notification.read ? 'normal' : 'bold' }}>
+                                                {notification.title}
                                                 <Chip
                                                     label={notification.priority}
                                                     size="small"
                                                     color={getPriorityColor(notification.priority)}
                                                     variant="outlined"
+                                                    sx={{ ml: 1 }}
                                                 />
-                                            </Box>
+                                            </Typography>
                                         }
                                         secondary={
-                                            <Box>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    {notification.message}
-                                                </Typography>
-                                                <Typography variant="caption" color="text.disabled">
+                                            <Typography component="span" variant="body2" color="text.secondary">
+                                                {notification.message}
+                                                <br />
+                                                <Typography component="span" variant="caption" color="text.disabled">
                                                     {formatDate(notification.createdAt)}
                                                 </Typography>
-                                            </Box>
+                                            </Typography>
                                         }
                                     />
                                     <ListItemIcon>

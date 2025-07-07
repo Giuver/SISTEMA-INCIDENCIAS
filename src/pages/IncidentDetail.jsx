@@ -24,10 +24,14 @@ import {
     InputLabel,
     List,
     ListItem,
-    ListItemText
+    ListItemText,
+    Avatar,
+    CircularProgress,
+    IconButton
 } from '@mui/material';
 import axios from 'axios';
 import { useNotification } from '../utils/notification';
+import SendIcon from '@mui/icons-material/Send';
 
 const statusColors = {
     pendiente: 'warning',
@@ -57,11 +61,20 @@ const IncidentDetail = () => {
     const [users, setUsers] = useState([]);
     const [assignTo, setAssignTo] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [comments, setComments] = useState([]);
+    const [commentText, setCommentText] = useState('');
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [sendingComment, setSendingComment] = useState(false);
     const notify = useNotification();
 
     // Simulación de rol (en producción, obtener del contexto de auth)
     const userRole = localStorage.getItem('role') || 'usuario';
     const userId = localStorage.getItem('userId') || '';
+
+    // Control de permisos por rol
+    // Solo admin y soporte pueden realizar acciones sobre incidencias
+    const canManageIncidents = userRole === 'admin' || userRole === 'soporte';
+    const isReadOnly = !canManageIncidents;
 
     useEffect(() => {
         const fetchIncident = async () => {
@@ -75,14 +88,27 @@ const IncidentDetail = () => {
                 setIsLoading(false);
             }
         };
+        const fetchComments = async () => {
+            setLoadingComments(true);
+            try {
+                const token = localStorage.getItem('token');
+                const res = await axios.get(`/api/incidents/${id}/comentarios`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setComments(res.data);
+            } catch (err) {
+                setComments([]);
+            } finally {
+                setLoadingComments(false);
+            }
+        };
         fetchIncident();
+        fetchComments();
     }, [id, success]);
 
     useEffect(() => {
-        if (userRole === 'admin' || userRole === 'soporte') {
-            axios.get('/api/users').then(res => setUsers(res.data));
-        }
-    }, [userRole]);
+        axios.get('/api/users').then(res => setUsers(res.data));
+    }, []);
 
     const handleStatusChange = async () => {
         try {
@@ -135,6 +161,27 @@ const IncidentDetail = () => {
         }
     };
 
+    const handleAddComment = async () => {
+        if (!commentText.trim()) return;
+        setSendingComment(true);
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(`/api/incidents/${id}/comentarios`, { text: commentText }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setCommentText('');
+            // Recargar comentarios
+            const res = await axios.get(`/api/incidents/${id}/comentarios`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setComments(res.data);
+        } catch (err) {
+            // Puedes mostrar notificación de error si lo deseas
+        } finally {
+            setSendingComment(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <Container maxWidth="md" sx={{ mt: 4 }}>
@@ -149,6 +196,14 @@ const IncidentDetail = () => {
                 <Alert severity="error">Incidencia no encontrada</Alert>
             </Container>
         );
+    }
+
+    let assignedToValue = '';
+    if (incident.assignedTo && users.length > 0) {
+        const assignedId = typeof incident.assignedTo === 'object' ? incident.assignedTo._id : incident.assignedTo;
+        if (users.some(u => u._id === assignedId)) {
+            assignedToValue = assignedId;
+        }
     }
 
     return (
@@ -173,8 +228,8 @@ const IncidentDetail = () => {
                         <Typography variant="body1">{incident.subject}</Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                        <Typography variant="h6">Categoría</Typography>
-                        <Typography variant="body1">{incident.category}</Typography>
+                        <Typography variant="h6">Área</Typography>
+                        <Typography variant="body1">{incident.area || 'Sin área'}</Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
                         <Typography variant="h6">Fecha de Creación</Typography>
@@ -192,6 +247,16 @@ const IncidentDetail = () => {
                         <Typography variant="h6">Descripción</Typography>
                         <Typography variant="body1">{incident.description}</Typography>
                     </Grid>
+                    {incident.tags && incident.tags.length > 0 && (
+                        <Grid item xs={12}>
+                            <Typography variant="h6">Etiquetas</Typography>
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                                {incident.tags.map((tag, idx) => (
+                                    <Chip key={idx} label={tag} color="secondary" variant="filled" />
+                                ))}
+                            </Box>
+                        </Grid>
+                    )}
                     {incident.attachment && (
                         <Grid item xs={12}>
                             <Typography variant="h6">Archivo Adjunto</Typography>
@@ -215,42 +280,59 @@ const IncidentDetail = () => {
                 <Divider sx={{ my: 3 }} />
 
                 {/* Acciones según rol y estado */}
-                {(userRole === 'admin' || userRole === 'soporte') && incident.status !== 'cerrado' && (
+                {/* Solo admin y soporte pueden realizar acciones sobre incidencias */}
+                {canManageIncidents && incident.status !== 'cerrado' && (
                     <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                         {/* Asignar */}
                         <FormControl sx={{ minWidth: 200 }} size="small">
                             <InputLabel>Asignar a</InputLabel>
                             <Select
-                                value={assignTo}
+                                value={assignTo || assignedToValue}
                                 label="Asignar a"
                                 onChange={e => setAssignTo(e.target.value)}
+                                disabled={isReadOnly}
+                                title={isReadOnly ?
+                                    'Solo usuarios con rol de soporte o administrador pueden asignar incidencias' :
+                                    'Asignar la incidencia a un usuario'
+                                }
                             >
-                                <MenuItem value="">Seleccionar</MenuItem>
-                                {users.map(u => (
-                                    <MenuItem key={u._id} value={u._id}>{u.name}</MenuItem>
+                                <MenuItem value="">Sin asignar</MenuItem>
+                                {users.map(user => (
+                                    <MenuItem key={user._id} value={user._id}>
+                                        {user.name} ({user.role})
+                                    </MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
                         <Button
                             variant="contained"
-                            color="primary"
-                            disabled={!assignTo}
                             onClick={handleAssign}
+                            disabled={isReadOnly || !assignTo}
+                            title={isReadOnly ?
+                                'Solo usuarios con rol de soporte o administrador pueden asignar incidencias' :
+                                'Asignar la incidencia'
+                            }
+                            sx={{ minWidth: 120 }}
                         >
                             Asignar
                         </Button>
-                        {/* Cambiar estado */}
+                        {/* Cambiar Estado */}
                         <FormControl sx={{ minWidth: 200 }} size="small">
-                            <InputLabel>Nuevo estado</InputLabel>
+                            <InputLabel>Cambiar Estado</InputLabel>
                             <Select
-                                value={newStatus}
-                                label="Nuevo estado"
+                                value={newStatus || incident.status}
+                                label="Cambiar Estado"
                                 onChange={e => setNewStatus(e.target.value)}
+                                disabled={isReadOnly}
+                                title={isReadOnly ?
+                                    'Solo usuarios con rol de soporte o administrador pueden cambiar el estado de las incidencias' :
+                                    'Cambiar el estado de la incidencia'
+                                }
                             >
-                                <MenuItem value="">Seleccionar</MenuItem>
-                                {['pendiente', 'en_proceso', 'resuelto', 'cerrado'].filter(s => s !== incident.status).map(s => (
-                                    <MenuItem key={s} value={s}>{s}</MenuItem>
-                                ))}
+                                <MenuItem value="pendiente">Pendiente</MenuItem>
+                                <MenuItem value="en_proceso">En Proceso</MenuItem>
+                                <MenuItem value="resuelto">Resuelto</MenuItem>
+                                <MenuItem value="cerrado">Cerrado</MenuItem>
                             </Select>
                         </FormControl>
                         <TextField
@@ -258,20 +340,25 @@ const IncidentDetail = () => {
                             label="Comentario"
                             value={comment}
                             onChange={e => setComment(e.target.value)}
+                            disabled={isReadOnly}
                         />
                         <Button
                             variant="contained"
-                            color="info"
-                            disabled={!newStatus}
                             onClick={handleStatusChange}
+                            disabled={isReadOnly || !newStatus || newStatus === incident.status}
+                            title={isReadOnly ?
+                                'Solo usuarios con rol de soporte o administrador pueden cambiar el estado' :
+                                'Aplicar cambio de estado'
+                            }
+                            sx={{ minWidth: 120 }}
                         >
-                            Cambiar Estado
+                            Aplicar
                         </Button>
                     </Box>
                 )}
 
                 {/* Solución (solo si está en proceso y el usuario es soporte/admin) */}
-                {incident.status === 'en_proceso' && (userRole === 'soporte' || userRole === 'admin') && (
+                {incident.status === 'en_proceso' && canManageIncidents && (
                     <Box sx={{ mb: 3 }}>
                         <form onSubmit={handleSolutionSubmit}>
                             <Typography variant="h6" gutterBottom>
@@ -285,12 +372,17 @@ const IncidentDetail = () => {
                                 onChange={e => setSolution(e.target.value)}
                                 placeholder="Ingrese la solución del problema..."
                                 sx={{ mb: 2 }}
+                                disabled={isReadOnly}
                             />
                             <Button
                                 type="submit"
                                 variant="contained"
                                 color="success"
-                                disabled={!solution}
+                                disabled={!solution || isReadOnly}
+                                title={isReadOnly ?
+                                    'Solo usuarios con rol de soporte o administrador pueden enviar soluciones' :
+                                    'Enviar solución y marcar como resuelto'
+                                }
                             >
                                 Enviar Solución y Marcar como Resuelto
                             </Button>
@@ -312,14 +404,23 @@ const IncidentDetail = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {incident.history && incident.history.length > 0 ? incident.history.map((h, idx) => (
-                                <TableRow key={idx}>
-                                    <TableCell>{new Date(h.date).toLocaleString()}</TableCell>
-                                    <TableCell>{h.user ? h.user.name || h.user : 'N/A'}</TableCell>
-                                    <TableCell>{h.action}</TableCell>
-                                    <TableCell>{h.comment}</TableCell>
-                                </TableRow>
-                            )) : (
+                            {incident.history && incident.history.length > 0 ? incident.history.map((h, idx) => {
+                                let userName = 'N/A';
+                                if (h.user && typeof h.user === 'object' && h.user.name) {
+                                    userName = h.user.name;
+                                } else if (h.user && typeof h.user === 'string' && users.length > 0) {
+                                    const found = users.find(u => u._id === h.user);
+                                    if (found) userName = found.name;
+                                }
+                                return (
+                                    <TableRow key={idx}>
+                                        <TableCell>{new Date(h.date).toLocaleString()}</TableCell>
+                                        <TableCell>{userName}</TableCell>
+                                        <TableCell>{h.action}</TableCell>
+                                        <TableCell>{h.comment}</TableCell>
+                                    </TableRow>
+                                );
+                            }) : (
                                 <TableRow>
                                     <TableCell colSpan={4} align="center">Sin historial</TableCell>
                                 </TableRow>
@@ -327,6 +428,48 @@ const IncidentDetail = () => {
                         </TableBody>
                     </Table>
                 </TableContainer>
+
+                {/* Sección de comentarios */}
+                <Divider sx={{ my: 3 }} />
+                <Typography variant="h6" sx={{ mb: 2 }}>Comentarios</Typography>
+                {loadingComments ? (
+                    <CircularProgress size={32} />
+                ) : (
+                    <List>
+                        {comments.length === 0 && <Typography color="text.secondary">Sin comentarios</Typography>}
+                        {comments.map((c, idx) => (
+                            <ListItem alignItems="flex-start" key={idx}>
+                                <ListItemAvatar>
+                                    <Avatar>{c.user?.name ? c.user.name[0].toUpperCase() : '?'}</Avatar>
+                                </ListItemAvatar>
+                                <ListItemText
+                                    primary={c.user?.name || 'Usuario'}
+                                    secondary={<>
+                                        <Typography component="span" variant="body2" color="text.primary">{c.text}</Typography>
+                                        <br />
+                                        <Typography component="span" variant="caption" color="text.secondary">{new Date(c.date).toLocaleString()}</Typography>
+                                    </>}
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+                )}
+                <Box display="flex" alignItems="center" gap={2} mt={2}>
+                    <TextField
+                        label="Agregar comentario"
+                        value={commentText}
+                        onChange={e => setCommentText(e.target.value)}
+                        fullWidth
+                        multiline
+                        minRows={1}
+                        maxRows={4}
+                        disabled={sendingComment || isReadOnly}
+                        inputProps={{ maxLength: 500, 'aria-label': 'Agregar comentario' }}
+                    />
+                    <IconButton color="primary" onClick={handleAddComment} disabled={sendingComment || !commentText.trim() || isReadOnly} aria-label="Enviar comentario">
+                        {sendingComment ? <CircularProgress size={24} /> : <SendIcon />}
+                    </IconButton>
+                </Box>
             </Paper>
         </Container>
     );

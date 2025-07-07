@@ -68,16 +68,11 @@ const Sidebar = () => {
                     <ListItemIcon sx={{ color: '#fff' }}><ListAltIcon /></ListItemIcon>
                     <ListItemText primary="Incidencias" />
                 </ListItem>
-                <ListItem button component={RouterLink} to="/categorias" sx={{ borderRadius: 2, mx: 1, mb: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={handleDrawerClose}>
+                <ListItem button component={RouterLink} to="/areas" sx={{ borderRadius: 2, mx: 1, mb: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={handleDrawerClose}>
                     <ListItemIcon sx={{ color: '#fff' }}><CategoryIcon /></ListItemIcon>
-                    <ListItemText primary="Categorías" />
+                    <ListItemText primary="Áreas" />
                 </ListItem>
-                {(role === 'admin' || role === 'soporte') && (
-                    <ListItem button component={RouterLink} to="/asignaciones" sx={{ borderRadius: 2, mx: 1, mb: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={handleDrawerClose}>
-                        <ListItemIcon sx={{ color: '#fff' }}><AssignmentIndIcon /></ListItemIcon>
-                        <ListItemText primary="Asignaciones" />
-                    </ListItem>
-                )}
+
                 {role === 'admin' && (
                     <ListItem button component={RouterLink} to="/usuarios" sx={{ borderRadius: 2, mx: 1, mb: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={handleDrawerClose}>
                         <ListItemIcon sx={{ color: '#fff' }}><GroupIcon /></ListItemIcon>

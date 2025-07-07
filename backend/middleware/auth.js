@@ -1,39 +1,43 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-const auth = (req, res, next) => {
-    // Si la ruta es pública, permitir el acceso
-    if (req.path === '/' && req.method === 'GET') {
-        return next();
+const auth = async (req, res, next) => {
+    console.log('🟠 Entrando al middleware auth (inicio absoluto)');
+    console.log('🟢 Entrando al middleware auth para la ruta:', req.originalUrl);
+    const authHeader = req.header('Authorization');
+    console.log('🟡 Header Authorization recibido:', authHeader);
+    const token = authHeader?.replace('Bearer ', '');
+    console.log('🔑 Token recibido (middleware auth):', token);
+    if (!token) {
+        return res.status(401).json({
+            message: 'No se proporcionó token de autenticación',
+            error: 'AUTH_NO_TOKEN'
+        });
     }
-
     try {
-        // Obtener el token del header
-        const token = req.header('Authorization')?.replace('Bearer ', '');
-
-        if (!token) {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+        console.log('🪪 Token decodificado:', decoded);
+        if (!decoded.user || !decoded.user.id || !decoded.user.role) {
             return res.status(401).json({
-                message: 'No hay token de autenticación',
-                error: 'AUTH_NO_TOKEN'
+                message: 'Token inválido: datos de usuario incompletos',
+                error: 'AUTH_INVALID_TOKEN_DATA'
             });
         }
-
-        try {
-            // Verificar el token
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-            req.user = decoded.user;
-            next();
-        } catch (error) {
-            console.error('Error al verificar token:', error);
+        const user = await User.findById(decoded.user.id);
+        console.log('👤 Usuario encontrado en BD:', user);
+        if (!user) {
             return res.status(401).json({
-                message: 'Token no válido o expirado',
-                error: 'AUTH_INVALID_TOKEN'
+                message: 'Usuario no encontrado en la base de datos',
+                error: 'AUTH_USER_NOT_FOUND'
             });
         }
+        req.user = user;
+        next();
     } catch (error) {
-        console.error('Error de autenticación:', error);
-        return res.status(500).json({
-            message: 'Error en el servidor durante la autenticación',
-            error: 'AUTH_SERVER_ERROR'
+        console.error('❌ Error al verificar token:', error.message);
+        return res.status(401).json({
+            message: 'Token inválido o expirado',
+            error: 'AUTH_INVALID_TOKEN'
         });
     }
 };
@@ -41,19 +45,26 @@ const auth = (req, res, next) => {
 const authorize = (...roles) => {
     return (req, res, next) => {
         if (!req.user) {
+            console.error('req.user no está definido en authorize');
             return res.status(401).json({
                 message: 'Usuario no autenticado',
                 error: 'AUTH_NO_USER'
             });
         }
-
+        if (!req.user.role) {
+            console.error('req.user.role no está definido:', req.user);
+            return res.status(401).json({
+                message: 'Rol de usuario no definido',
+                error: 'AUTH_NO_ROLE'
+            });
+        }
         if (!roles.includes(req.user.role)) {
+            console.error('Rol no autorizado:', req.user.role, 'Roles requeridos:', roles);
             return res.status(403).json({
                 message: 'No tienes permiso para realizar esta acción',
                 error: 'AUTH_INSUFFICIENT_PERMISSIONS'
             });
         }
-
         next();
     };
 };

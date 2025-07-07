@@ -22,6 +22,11 @@ const UserManagement = () => {
     const notify = useNotification();
     const [deleteDialog, setDeleteDialog] = useState({ open: false, user: null });
 
+    // Control de permisos por rol
+    // Solo admin puede gestionar usuarios
+    const userRole = localStorage.getItem('role') || 'usuario';
+    const canManageUsers = userRole === 'admin';
+
     const fetchUsers = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -122,7 +127,7 @@ const UserManagement = () => {
     };
 
     // Solo permitir acceso a admin
-    if (localStorage.getItem('role') !== 'admin') {
+    if (!canManageUsers) {
         return <Alert severity="error">Acceso denegado. Solo para administradores.</Alert>;
     }
 
@@ -130,7 +135,12 @@ const UserManagement = () => {
         <Container maxWidth="md" sx={{ mt: 6 }}>
             <Paper sx={{ p: 3 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="h5">Gestión de Usuarios</Typography>
+                    <Typography variant="h4" fontWeight="bold" mb={2}>
+                        Gestión de Usuarios
+                    </Typography>
+                    <Typography variant="body1" color="text.secondary" mb={3}>
+                        Administra usuarios del sistema. Solo los administradores pueden gestionar usuarios.
+                    </Typography>
                     <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>Nuevo usuario</Button>
                 </Box>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -154,8 +164,21 @@ const UserManagement = () => {
                                     <TableCell>{user.role}</TableCell>
                                     <TableCell>{user.department || '-'}</TableCell>
                                     <TableCell align="right">
-                                        <IconButton color="primary" onClick={() => handleOpen(user)}><Edit /></IconButton>
-                                        <IconButton color="error" onClick={() => handleDeleteClick(user)}><Delete /></IconButton>
+                                        <IconButton
+                                            onClick={() => handleOpen(user)}
+                                            title="Editar usuario"
+                                            size="small"
+                                        >
+                                            <Edit />
+                                        </IconButton>
+                                        <IconButton
+                                            onClick={() => handleDeleteClick(user)}
+                                            title="Eliminar usuario"
+                                            size="small"
+                                            color="error"
+                                        >
+                                            <Delete />
+                                        </IconButton>
                                     </TableCell>
                                 </TableRow>
                             ))}

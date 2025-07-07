@@ -52,24 +52,23 @@ class NotificationService {
     }
 
     // Crear notificación de incidencia asignada
-    static async createIncidentAssignedNotification(incident, assignedUser, assignedBy) {
+    static async createIncidentAssignedNotification(incident, assignedUsers, assignedBy) {
         try {
-            const notification = new Notification({
+            if (!Array.isArray(assignedUsers)) assignedUsers = [assignedUsers];
+            const notifications = assignedUsers.map(user => new Notification({
                 type: 'incident_assigned',
                 title: 'Incidencia Asignada',
                 message: `Se te ha asignado la incidencia: "${incident.subject}"`,
-                recipient: assignedUser._id,
+                recipient: user._id,
                 sender: assignedBy._id,
                 relatedIncident: incident._id,
                 priority: incident.priority === 'Crítica' ? 'high' : 'medium'
+            }));
+            const savedNotifications = await Notification.insertMany(notifications);
+            savedNotifications.forEach(notification => {
+                this.sendRealTimeNotification(notification);
             });
-
-            const savedNotification = await notification.save();
-
-            // Enviar notificación en tiempo real
-            this.sendRealTimeNotification(savedNotification);
-
-            return savedNotification;
+            return savedNotifications;
         } catch (error) {
             console.error('Error creating incident assigned notification:', error);
         }
@@ -237,6 +236,87 @@ class NotificationService {
             return savedNotifications;
         } catch (error) {
             console.error('Error creating category deleted notification:', error);
+        }
+    }
+
+    // Crear notificación de área creada (solo para admin)
+    static async createAreaCreatedNotification(area, createdBy) {
+        try {
+            const adminUsers = await User.find({ role: 'admin' });
+
+            const notifications = adminUsers.map(admin => ({
+                type: 'area_created',
+                title: 'Nueva Área Creada',
+                message: `Se ha creado una nueva área: ${area.name}`,
+                recipient: admin._id,
+                sender: createdBy._id,
+                priority: 'low'
+            }));
+
+            const savedNotifications = await Notification.insertMany(notifications);
+
+            // Enviar notificaciones en tiempo real
+            savedNotifications.forEach(notification => {
+                this.sendRealTimeNotification(notification);
+            });
+
+            return savedNotifications;
+        } catch (error) {
+            console.error('Error creating area created notification:', error);
+        }
+    }
+
+    // Crear notificación de área actualizada (solo para admin)
+    static async createAreaUpdatedNotification(area, updatedBy) {
+        try {
+            const adminUsers = await User.find({ role: 'admin' });
+
+            const notifications = adminUsers.map(admin => ({
+                type: 'area_updated',
+                title: 'Área Actualizada',
+                message: `Se ha actualizado el área: ${area.name}`,
+                recipient: admin._id,
+                sender: updatedBy._id,
+                priority: 'low'
+            }));
+
+            const savedNotifications = await Notification.insertMany(notifications);
+
+            // Enviar notificaciones en tiempo real
+            savedNotifications.forEach(notification => {
+                this.sendRealTimeNotification(notification);
+            });
+
+            return savedNotifications;
+        } catch (error) {
+            console.error('Error creating area updated notification:', error);
+        }
+    }
+
+    // Crear notificación de área eliminada (solo para admin)
+    static async createAreaDeletedNotification(areaName, deletedBy) {
+        try {
+            const adminUsers = await User.find({ role: 'admin' });
+
+            const notifications = adminUsers.map(admin => ({
+                type: 'area_deleted',
+                title: 'Área Eliminada',
+                message: `Se ha eliminado el área: ${areaName}`,
+                recipient: admin._id,
+                sender: deletedBy._id,
+                priority: 'medium'
+            }));
+
+            const savedNotifications = await Notification.insertMany(notifications);
+
+            // Enviar notificaciones en tiempo real
+            savedNotifications.forEach(notification => {
+                this.sendRealTimeNotification(notification);
+            });
+
+            return savedNotifications;
+        } catch (error) {
+            console.error('Error creating area deleted notification:', error);
         }
     }
 }
