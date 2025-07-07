@@ -10,6 +10,7 @@ import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import MenuIcon from '@mui/icons-material/Menu';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import NotificationCenter from './NotificationCenter';
+import sessionManager from '../utils/sessionManager';
 
 const drawerWidth = 250;
 
@@ -17,13 +18,13 @@ const Sidebar = () => {
     const [open, setOpen] = useState(false);
     const isMobile = useMediaQuery('(max-width:900px)');
     const navigate = useNavigate();
-    const token = localStorage.getItem('token');
-    const role = localStorage.getItem('role');
+    const authData = sessionManager.getAuthData();
+    const token = authData?.token;
+    const role = authData?.role;
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        navigate('/login');
+        sessionManager.logout();
+        window.location.href = '/login'; // recarga total para limpiar todo el estado
     };
 
     const handleDrawerOpen = () => setOpen(true);
@@ -68,10 +69,12 @@ const Sidebar = () => {
                     <ListItemIcon sx={{ color: '#fff' }}><ListAltIcon /></ListItemIcon>
                     <ListItemText primary="Incidencias" />
                 </ListItem>
-                <ListItem button component={RouterLink} to="/areas" sx={{ borderRadius: 2, mx: 1, mb: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={handleDrawerClose}>
-                    <ListItemIcon sx={{ color: '#fff' }}><CategoryIcon /></ListItemIcon>
-                    <ListItemText primary="Áreas" />
-                </ListItem>
+                {role === 'admin' && (
+                    <ListItem button component={RouterLink} to="/areas" sx={{ borderRadius: 2, mx: 1, mb: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={handleDrawerClose}>
+                        <ListItemIcon sx={{ color: '#fff' }}><CategoryIcon /></ListItemIcon>
+                        <ListItemText primary="Áreas" />
+                    </ListItem>
+                )}
 
                 {role === 'admin' && (
                     <ListItem button component={RouterLink} to="/usuarios" sx={{ borderRadius: 2, mx: 1, mb: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={handleDrawerClose}>
@@ -106,14 +109,9 @@ const Sidebar = () => {
                         </Button>
                     </>
                 ) : (
-                    <>
-                        <Button color="inherit" component={RouterLink} to="/login" fullWidth sx={{ mb: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.08)' }} onClick={handleDrawerClose}>
-                            Iniciar sesión
-                        </Button>
-                        <Button color="inherit" component={RouterLink} to="/registro" fullWidth sx={{ borderRadius: 2, bgcolor: 'rgba(255,255,255,0.08)' }} onClick={handleDrawerClose}>
-                            Registrarse
-                        </Button>
-                    </>
+                    <Button color="inherit" component={RouterLink} to="/login" fullWidth sx={{ mb: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.08)' }} onClick={handleDrawerClose}>
+                        Iniciar sesión
+                    </Button>
                 )}
             </Box>
         </>

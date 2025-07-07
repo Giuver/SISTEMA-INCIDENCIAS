@@ -44,27 +44,42 @@ const auth = async (req, res, next) => {
 
 const authorize = (...roles) => {
     return (req, res, next) => {
+        console.log('🔐 Entrando al middleware authorize');
+        console.log('👤 Usuario en req.user:', req.user);
+        console.log('🎭 Roles del usuario:', req.user?.role);
+        console.log('📋 Roles requeridos:', roles);
+
         if (!req.user) {
-            console.error('req.user no está definido en authorize');
+            console.error('❌ req.user no está definido en authorize');
             return res.status(401).json({
                 message: 'Usuario no autenticado',
                 error: 'AUTH_NO_USER'
             });
         }
+
         if (!req.user.role) {
-            console.error('req.user.role no está definido:', req.user);
+            console.error('❌ req.user.role no está definido:', req.user);
             return res.status(401).json({
                 message: 'Rol de usuario no definido',
                 error: 'AUTH_NO_ROLE'
             });
         }
-        if (!roles.includes(req.user.role)) {
-            console.error('Rol no autorizado:', req.user.role, 'Roles requeridos:', roles);
+
+        // Verificar si el rol del usuario está en la lista de roles permitidos
+        const hasPermission = roles.includes(req.user.role);
+        console.log('✅ ¿Tiene permiso?', hasPermission);
+
+        if (!hasPermission) {
+            console.error('❌ Rol no autorizado:', req.user.role, 'Roles requeridos:', roles);
             return res.status(403).json({
                 message: 'No tienes permiso para realizar esta acción',
-                error: 'AUTH_INSUFFICIENT_PERMISSIONS'
+                error: 'AUTH_INSUFFICIENT_PERMISSIONS',
+                userRole: req.user.role,
+                requiredRoles: roles
             });
         }
+
+        console.log('✅ Autorización exitosa para rol:', req.user.role);
         next();
     };
 };

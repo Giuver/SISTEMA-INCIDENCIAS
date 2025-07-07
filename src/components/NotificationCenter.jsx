@@ -28,6 +28,7 @@ import {
 import axios from 'axios';
 import { useNotification } from '../utils/notification';
 import { io } from 'socket.io-client';
+import sessionManager from '../utils/sessionManager';
 
 const NotificationCenter = () => {
     const [notifications, setNotifications] = useState([]);
@@ -38,7 +39,8 @@ const NotificationCenter = () => {
     const [hasMore, setHasMore] = useState(true);
     const notify = useNotification();
     const socketRef = useRef(null);
-    const userId = localStorage.getItem('userId');
+    const authData = sessionManager.getAuthData();
+    const userId = authData?.userId;
 
     const open = Boolean(anchorEl);
 
@@ -99,7 +101,8 @@ const NotificationCenter = () => {
     const fetchNotifications = async (pageNum = 1, append = false) => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
+            const authData = sessionManager.getAuthData();
+            const token = authData?.token;
             const response = await axios.get(`/api/notifications?page=${pageNum}&limit=10`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -124,7 +127,8 @@ const NotificationCenter = () => {
 
     const markAsRead = async (notificationId) => {
         try {
-            const token = localStorage.getItem('token');
+            const authData = sessionManager.getAuthData();
+            const token = authData?.token;
             await axios.patch(`/api/notifications/${notificationId}/read`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -145,7 +149,8 @@ const NotificationCenter = () => {
 
     const markAllAsRead = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const authData = sessionManager.getAuthData();
+            const token = authData?.token;
             await axios.patch('/api/notifications/read-all', {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -171,7 +176,8 @@ const NotificationCenter = () => {
     useEffect(() => {
         if (!userId) return;
         if (!socketRef.current) {
-            const token = localStorage.getItem('token');
+            const authData = sessionManager.getAuthData();
+            const token = authData?.token;
             socketRef.current = io('http://localhost:5000', {
                 auth: {
                     token: token

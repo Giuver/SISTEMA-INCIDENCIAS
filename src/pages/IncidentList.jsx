@@ -26,7 +26,9 @@ import {
     DialogActions,
     Grid,
     Divider,
-    CircularProgress
+    CircularProgress,
+    Snackbar,
+    Alert
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -40,6 +42,7 @@ import IncidentForm from './IncidentForm';
 import LoaderOverlay from '../components/LoaderOverlay';
 import PersonIcon from '@mui/icons-material/Person';
 import EditIcon from '@mui/icons-material/Edit';
+import sessionManager from '../utils/sessionManager';
 
 const statusColors = {
     pendiente: 'warning',
@@ -64,13 +67,20 @@ const IncidentList = () => {
     const [categorias, setCategorias] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [filtros, setFiltros] = useState({ estado: '', prioridad: '', categoria: '', asignado: '', search: '' });
-    const role = localStorage.getItem('role');
-    const userId = localStorage.getItem('userId');
+    const authData = sessionManager.getAuthData();
+    const token = authData?.token;
+    const role = authData?.role;
+    const userId = authData?.userId;
     const notify = useNotification();
+    const [loading, setLoading] = useState(true);
+    const [errorUsers, setErrorUsers] = useState(false);
 
     // Control de permisos por rol
     // Solo admin y soporte pueden realizar acciones sobre incidencias
     const canManageIncidents = role === 'admin' || role === 'soporte';
+    // Los usuarios solo pueden crear incidencias, no editarlas
+    const canCreateIncidents = true; // Todos pueden crear
+    const canEditIncidents = role === 'admin' || role === 'soporte';
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedIncident, setSelectedIncident] = useState(null);
     const [page, setPage] = useState(0);
@@ -85,26 +95,22 @@ const IncidentList = () => {
     const [rowUpdating, setRowUpdating] = useState(null);
 
     const fetchIncidents = async () => {
+        setLoading(true);
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.get('/api/incidents', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            let data = res.data;
-            // Filtrar según rol
-            if (role === 'usuario') {
-                data = data.filter(i => i.createdBy === userId);
-            }
-            setIncidents(data);
+            setIncidents(res.data);
         } catch (err) {
             setIncidents([]);
             notify('No se pudieron cargar las incidencias', 'error');
+        } finally {
+            setLoading(false);
         }
     };
 
     const fetchAreas = async () => {
         try {
-            const token = localStorage.getItem('token');
             const res = await axios.get('/api/areas', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -117,14 +123,23 @@ const IncidentList = () => {
 
     const fetchUsuarios = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get('/api/users', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setUsuarios(res.data);
+            const userRole = role;
+            // Solo cargar usuarios si es admin o soporte
+            if (userRole === 'admin' || userRole === 'soporte') {
+                const res = await axios.get('/api/users', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setUsuarios(res.data);
+            } else {
+                setUsuarios([]);
+            }
         } catch (err) {
             setUsuarios([]);
-            notify('Error al cargar usuarios', 'error');
+            // Solo mostrar error si es admin o soporte
+            const userRole = role;
+            if (userRole === 'admin' || userRole === 'soporte') {
+                notify('Error al cargar usuarios', 'error');
+            }
         }
     };
 
@@ -191,7 +206,7 @@ const IncidentList = () => {
     };
 
     const handleEditIncident = (incident) => {
-        if (!canManageIncidents) {
+        if (!canEditIncidents) {
             notify('Usted no cuenta con estos privilegios', 'error');
             return;
         }
@@ -208,7 +223,6 @@ const IncidentList = () => {
     const handleUpdateStatus = async () => {
         setUpdating(true);
         try {
-            const token = localStorage.getItem('token');
             await axios.patch(`/api/incidents/${selectedIncident._id}/estado`, {
                 status: newStatus,
                 comment: 'Cambio de estado desde el modal',
@@ -231,7 +245,6 @@ const IncidentList = () => {
     const handleUpdateAssigned = async () => {
         setUpdating(true);
         try {
-            const token = localStorage.getItem('token');
             await axios.patch(`/api/incidents/${selectedIncident._id}/asignar`, {
                 assignedTo: newAssigned
             }, {
@@ -251,15 +264,8 @@ const IncidentList = () => {
     const handleQuickEdit = async (id, field, value) => {
         setRowUpdating(id + field);
         try {
-            const token = localStorage.getItem('token');
-            if (field === 'assignedTo') {
-                await axios.patch(`/api/incidents/${id}/asignar`, { assignedTo: value }, { headers: { Authorization: `Bearer ${token}` } });
-                notify('Responsable actualizado', 'success');
-            } else {
-                await axios.patch(`/api/incidents/${id}`, { [field]: value }, { headers: { Authorization: `Bearer ${token}` } });
-                notify('Campo actualizado', 'success');
-            }
-            await fetchIncidents();
+            await axios.patch(`/api/incidents/${id}/asignar`, { assignedTo: value }, { headers: { Authorization: `Bearer ${token}` } });
+            notify('Responsable actualizado', 'success');
         } catch (err) {
             notify('Error al actualizar', 'error');
         } finally {
@@ -267,9 +273,13 @@ const IncidentList = () => {
         }
     };
 
+    const handleCloseErrorUsers = () => {
+        setErrorUsers(false);
+    };
+
     return (
         <Container maxWidth="lg" sx={{ mt: 6 }}>
-            <LoaderOverlay open={updating || incidents.length === 0} />
+            <LoaderOverlay open={loading} />
             <Paper sx={{ p: 3 }}>
                 <Typography variant="h5" gutterBottom>Listado de Incidencias</Typography>
                 <Box display="flex" gap={2} flexWrap="wrap" mb={2}>
@@ -334,91 +344,107 @@ const IncidentList = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {filtrarIncidencias().slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((i) => (
-                                <TableRow key={i._id} role="row">
-                                    <TableCell role="cell">{i.subject}</TableCell>
-                                    <TableCell role="cell">
-                                        {canManageIncidents ? (
-                                            <FormControl size="small" variant="standard">
-                                                <Select
-                                                    value={i.status}
-                                                    onChange={e => handleQuickEdit(i._id, 'status', e.target.value)}
-                                                    disabled={rowUpdating === i._id + 'status'}
-                                                    inputProps={{ 'aria-label': 'Estado de la incidencia' }}
-                                                    sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
-                                                >
-                                                    {estados.map(e => <MenuItem key={e} value={e}>{e}</MenuItem>)}
-                                                </Select>
-                                                {rowUpdating === i._id + 'status' && <CircularProgress size={18} sx={{ ml: 1 }} />}
-                                            </FormControl>
-                                        ) : (
-                                            <Chip label={i.status} color={statusColors[i.status]} sx={{ fontWeight: 'bold' }} />
-                                        )}
-                                    </TableCell>
-                                    <TableCell role="cell">
-                                        {canManageIncidents ? (
-                                            <FormControl size="small" variant="standard">
-                                                <Select
-                                                    value={i.priority}
-                                                    onChange={e => handleQuickEdit(i._id, 'priority', e.target.value)}
-                                                    disabled={rowUpdating === i._id + 'priority'}
-                                                    inputProps={{ 'aria-label': 'Prioridad de la incidencia' }}
-                                                    sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
-                                                >
-                                                    {prioridades.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-                                                </Select>
-                                                {rowUpdating === i._id + 'priority' && <CircularProgress size={18} sx={{ ml: 1 }} />}
-                                            </FormControl>
-                                        ) : (
-                                            <Chip label={i.priority} color={priorityColors[i.priority]} sx={{ fontWeight: 'bold' }} />
-                                        )}
-                                    </TableCell>
-                                    <TableCell role="cell">{i.area || 'Sin área'}</TableCell>
-                                    <TableCell role="cell">
-                                        {Array.isArray(i.assignedTo) && i.assignedTo.length > 0 ? (
-                                            <Tooltip title={i.assignedTo.map(u => u.name).join(', ')} arrow>
-                                                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                    {i.assignedTo.slice(0, 2).map(u => (
-                                                        <Chip key={u._id} label={u.name} size="small" color="primary" icon={<PersonIcon />} />
-                                                    ))}
-                                                    {i.assignedTo.length > 2 && (
-                                                        <Chip label={`+${i.assignedTo.length - 2}`} size="small" color="primary" />
-                                                    )}
-                                                </Box>
-                                            </Tooltip>
-                                        ) : (
-                                            <Chip label="Sin asignar" size="small" color="default" variant="outlined" />
-                                        )}
-                                    </TableCell>
-                                    <TableCell role="cell">{new Date(i.createdAt).toLocaleDateString()}</TableCell>
-                                    <TableCell role="cell" align="right">
-                                        <Tooltip title="Ver detalles de la incidencia" arrow>
-                                            <IconButton
-                                                onClick={() => handleViewIncident(i)}
-                                                size="small"
-                                                aria-label="Ver detalles de la incidencia"
-                                                tabIndex={0}
-                                                sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
-                                            >
-                                                <VisibilityIcon />
-                                            </IconButton>
-                                        </Tooltip>
-                                        {canManageIncidents && (
-                                            <Tooltip title="Editar incidencia" arrow>
-                                                <IconButton
-                                                    onClick={() => handleEditIncident(i)}
-                                                    size="small"
-                                                    aria-label="Editar incidencia"
-                                                    tabIndex={0}
-                                                    sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
-                                                >
-                                                    <EditIcon />
-                                                </IconButton>
-                                            </Tooltip>
-                                        )}
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} align="center">
+                                        <CircularProgress />
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : filtrarIncidencias().length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} align="center">
+                                        No hay incidencias registradas.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filtrarIncidencias()
+                                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                                    .map((i) => (
+                                        <TableRow key={i._id} role="row">
+                                            <TableCell role="cell">{i.subject}</TableCell>
+                                            <TableCell role="cell">
+                                                {canManageIncidents ? (
+                                                    <FormControl size="small" variant="standard">
+                                                        <Select
+                                                            value={i.status}
+                                                            onChange={e => handleQuickEdit(i._id, 'status', e.target.value)}
+                                                            disabled={rowUpdating === i._id + 'status'}
+                                                            inputProps={{ 'aria-label': 'Estado de la incidencia' }}
+                                                            sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                        >
+                                                            {estados.map(e => <MenuItem key={e} value={e}>{e}</MenuItem>)}
+                                                        </Select>
+                                                        {rowUpdating === i._id + 'status' && <CircularProgress size={18} sx={{ ml: 1 }} />}
+                                                    </FormControl>
+                                                ) : (
+                                                    <Chip label={i.status} color={statusColors[i.status]} sx={{ fontWeight: 'bold' }} />
+                                                )}
+                                            </TableCell>
+                                            <TableCell role="cell">
+                                                {canManageIncidents ? (
+                                                    <FormControl size="small" variant="standard">
+                                                        <Select
+                                                            value={i.priority}
+                                                            onChange={e => handleQuickEdit(i._id, 'priority', e.target.value)}
+                                                            disabled={rowUpdating === i._id + 'priority'}
+                                                            inputProps={{ 'aria-label': 'Prioridad de la incidencia' }}
+                                                            sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                        >
+                                                            {prioridades.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                                                        </Select>
+                                                        {rowUpdating === i._id + 'priority' && <CircularProgress size={18} sx={{ ml: 1 }} />}
+                                                    </FormControl>
+                                                ) : (
+                                                    <Chip label={i.priority} color={priorityColors[i.priority]} sx={{ fontWeight: 'bold' }} />
+                                                )}
+                                            </TableCell>
+                                            <TableCell role="cell">{i.area || 'Sin área'}</TableCell>
+                                            <TableCell role="cell">
+                                                {Array.isArray(i.assignedTo) && i.assignedTo.length > 0 ? (
+                                                    <Tooltip title={i.assignedTo.map(u => u.name).join(', ')} arrow>
+                                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                            {i.assignedTo.slice(0, 2).map(u => (
+                                                                <Chip key={u._id} label={u.name} size="small" color="primary" icon={<PersonIcon />} />
+                                                            ))}
+                                                            {i.assignedTo.length > 2 && (
+                                                                <Chip label={`+${i.assignedTo.length - 2}`} size="small" color="primary" />
+                                                            )}
+                                                        </Box>
+                                                    </Tooltip>
+                                                ) : (
+                                                    <Chip label="Sin asignar" size="small" color="default" variant="outlined" />
+                                                )}
+                                            </TableCell>
+                                            <TableCell role="cell">{new Date(i.createdAt).toLocaleDateString()}</TableCell>
+                                            <TableCell role="cell" align="right">
+                                                <Tooltip title="Ver detalles de la incidencia" arrow>
+                                                    <IconButton
+                                                        onClick={() => handleViewIncident(i)}
+                                                        size="small"
+                                                        aria-label="Ver detalles de la incidencia"
+                                                        tabIndex={0}
+                                                        sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                    >
+                                                        <VisibilityIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                {canManageIncidents && (
+                                                    <Tooltip title="Editar incidencia" arrow>
+                                                        <IconButton
+                                                            onClick={() => handleEditIncident(i)}
+                                                            size="small"
+                                                            aria-label="Editar incidencia"
+                                                            tabIndex={0}
+                                                            sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                        >
+                                                            <EditIcon />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                            )}
                         </TableBody>
                     </Table>
                 </TableContainer>
@@ -561,6 +587,13 @@ const IncidentList = () => {
                     <IncidentForm onClose={() => { setNewModalOpen(false); fetchIncidents(); }} isModal />
                 </DialogContent>
             </Dialog>
+            {role === 'admin' && errorUsers && (
+                <Snackbar open={true} autoHideDuration={6000} onClose={handleCloseErrorUsers}>
+                    <Alert onClose={handleCloseErrorUsers} severity="error" sx={{ width: '100%' }}>
+                        Error al cargar usuarios
+                    </Alert>
+                </Snackbar>
+            )}
         </Container>
     );
 };

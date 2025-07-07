@@ -15,9 +15,12 @@ import {
     Button,
     Grid,
     Chip,
-    CircularProgress
+    CircularProgress,
+    Alert,
+    AlertTitle
 } from '@mui/material';
 import { auditAPI, userAPI } from '../utils/apiService';
+import sessionManager from '../utils/sessionManager';
 
 const actions = [
     'crear',
@@ -44,8 +47,7 @@ const AuditLog = () => {
     const [error, setError] = useState(null);
 
     // Control de permisos por rol
-    // Solo admin puede acceder al historial de auditoría
-    const userRole = localStorage.getItem('role') || 'usuario';
+    const userRole = sessionManager.getAuthData()?.role || 'usuario';
     const canViewAudit = userRole === 'admin';
 
     useEffect(() => {
@@ -130,6 +132,17 @@ const AuditLog = () => {
         setPage(0);
     };
 
+    if (!canViewAudit) {
+        return (
+            <Box sx={{ p: 3 }}>
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    <AlertTitle>Acceso Denegado</AlertTitle>
+                    Solo los administradores pueden acceder al historial de auditoría.
+                </Alert>
+            </Box>
+        );
+    }
+
     return (
         <Box p={3}>
             {/* Mostrar errores */}
@@ -148,17 +161,6 @@ const AuditLog = () => {
             )}
 
             {/* Verificación de permisos */}
-            {!canViewAudit && (
-                <Paper sx={{ p: 3, textAlign: 'center' }}>
-                    <Typography variant="h6" color="error" gutterBottom>
-                        Acceso Denegado
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary">
-                        Solo los administradores pueden acceder al historial de auditoría.
-                    </Typography>
-                </Paper>
-            )}
-
             {canViewAudit && (
                 <>
                     <Typography variant="h4" fontWeight="bold" mb={2}>

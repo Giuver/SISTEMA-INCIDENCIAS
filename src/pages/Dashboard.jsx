@@ -31,6 +31,7 @@ import {
     getCachedData,
     updateCache
 } from '../utils/dashboardUtils';
+import sessionManager from '../utils/sessionManager';
 
 const Dashboard = () => {
     const [incidencias, setIncidencias] = useState([]);
@@ -49,7 +50,9 @@ const Dashboard = () => {
                 return;
             }
 
-            const token = localStorage.getItem('token');
+            const authData = sessionManager.getAuthData();
+            const token = authData?.token;
+
             const res = await axios.get('/api/incidents', {
                 headers: { Authorization: `Bearer ${token}` }
             });

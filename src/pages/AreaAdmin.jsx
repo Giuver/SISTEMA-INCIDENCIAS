@@ -4,6 +4,7 @@ import {
 } from '@mui/material';
 import { Add, Edit, Delete } from '@mui/icons-material';
 import axios from 'axios';
+import sessionManager from '../utils/sessionManager';
 
 const emptyArea = { name: '', description: '', color: '#4CAF50' };
 
@@ -19,7 +20,7 @@ const AreaAdmin = () => {
 
     const fetchAreas = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionManager.getAuthData()?.token;
             const res = await axios.get('/api/areas', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -31,7 +32,7 @@ const AreaAdmin = () => {
 
     const fetchIncidents = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionManager.getAuthData()?.token;
             const res = await axios.get('/api/incidents', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -80,11 +81,12 @@ const AreaAdmin = () => {
             return;
         }
         try {
+            const token = sessionManager.getAuthData()?.token;
             if (editMode) {
-                await axios.put(`/api/areas/${selectedId}`, form, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+                await axios.put(`/api/areas/${selectedId}`, form, { headers: { Authorization: `Bearer ${token}` } });
                 setSuccess('Área actualizada');
             } else {
-                await axios.post('/api/areas', form, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+                await axios.post('/api/areas', form, { headers: { Authorization: `Bearer ${token}` } });
                 setSuccess('Área creada');
             }
             fetchAreas();
@@ -104,7 +106,8 @@ const AreaAdmin = () => {
         }
         if (!window.confirm('¿Seguro que deseas eliminar esta área?')) return;
         try {
-            await axios.delete(`/api/areas/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+            const token = sessionManager.getAuthData()?.token;
+            await axios.delete(`/api/areas/${id}`, { headers: { Authorization: `Bearer ${token}` } });
             setSuccess('Área eliminada');
             fetchAreas();
         } catch (err) {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Alert, CircularProgress, Box, Typography } from '@mui/material';
+import sessionManager from '../utils/sessionManager';
 
 const PrivateRoute = ({ children, roles }) => {
     const [isLoading, setIsLoading] = useState(true);
@@ -14,27 +15,29 @@ const PrivateRoute = ({ children, roles }) => {
         const checkAuth = async () => {
             console.log('🔍 PrivateRoute - Iniciando verificación de autenticación');
 
-            const token = localStorage.getItem('token');
-            const storedRole = localStorage.getItem('role');
-            const storedUserId = localStorage.getItem('userId');
+            const authData = sessionManager.getAuthData();
+            const token = authData?.token || null;
+            const storedRole = authData?.role || null;
+            const storedUserId = authData?.userId || null;
 
-            console.log('🔍 Token en localStorage:', token ? 'Presente' : 'Ausente');
-            console.log('🔍 Rol en localStorage:', storedRole);
-            console.log('🔍 UserId en localStorage:', storedUserId);
+            console.log('🔍 Token en sesión:', token ? 'Presente' : 'Ausente');
+            console.log('🔍 Rol en sesión:', storedRole);
+            console.log('🔍 UserId en sesión:', storedUserId);
+            console.log('🆔 ID de sesión:', sessionManager.sessionId);
 
             // Si no hay token, redirigir después de 5 segundos
             if (!token) {
                 console.log('❌ No hay token, redirigiendo a login en 5 segundos');
-                setRedirectReason('No hay token en localStorage. Serás redirigido al login.');
+                setRedirectReason('No hay sesión activa. Serás redirigido al login.');
                 setRedirecting(true);
                 setIsLoading(false);
                 setTimeout(() => setRedirecting(false), 5000);
                 return;
             }
 
-            // Si tenemos todos los datos en localStorage, confiar en ellos
+            // Si tenemos todos los datos en la sesión, confiar en ellos
             if (token && storedRole && storedUserId) {
-                console.log('✅ Datos completos en localStorage, confiando en ellos');
+                console.log('✅ Datos completos en sesión, confiando en ellos');
                 console.log('✅ Rol del usuario:', storedRole);
 
                 setIsAuthenticated(true);
@@ -69,9 +72,13 @@ const PrivateRoute = ({ children, roles }) => {
                     setIsAuthenticated(true);
                     setUserRole(data.user.role);
 
-                    // Actualizar localStorage
-                    localStorage.setItem('role', data.user.role);
-                    localStorage.setItem('userId', data.user._id);
+                    // Actualizar sesión
+                    sessionManager.setAuthData({
+                        token: token,
+                        role: data.user.role,
+                        userId: data.user._id,
+                        userName: data.user.name
+                    });
 
                     console.log('✅ Estado de autenticación actualizado correctamente');
 
@@ -85,9 +92,7 @@ const PrivateRoute = ({ children, roles }) => {
                     setRedirectReason('Token inválido o expirado. Serás redirigido al login.');
                     setRedirecting(true);
                     setIsAuthenticated(false);
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('role');
-                    localStorage.removeItem('userId');
+                    sessionManager.logout();
                     setTimeout(() => setRedirecting(false), 5000);
                 }
             } catch (error) {

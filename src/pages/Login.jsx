@@ -6,6 +6,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../config/api';
+import sessionManager from '../utils/sessionManager';
 
 const Login = () => {
     const [form, setForm] = useState({ email: '', password: '' });
@@ -42,11 +43,16 @@ const Login = () => {
                 console.log('✅ Role recibido:', res.data.role);
                 console.log('✅ UserId recibido:', res.data.userId);
 
-                localStorage.setItem('token', res.data.token);
-                localStorage.setItem('role', res.data.role);
-                localStorage.setItem('userId', res.data.userId);
+                // Usar el gestor de sesiones para guardar datos de forma independiente
+                sessionManager.setAuthData({
+                    token: res.data.token,
+                    role: res.data.role,
+                    userId: res.data.userId,
+                    userName: res.data.userName || res.data.name
+                });
 
-                console.log('💾 Token guardado en localStorage');
+                console.log('💾 Datos guardados en sesión independiente');
+                console.log('🆔 ID de sesión:', sessionManager.sessionId);
                 navigate('/');
             } else {
                 setError('Error en la respuesta del servidor');

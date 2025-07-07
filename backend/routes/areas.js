@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Area = require('../models/Area');
-const { auth, authorize } = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
+const { requirePermission, requireAnyPermission } = require('../config/roles');
 const NotificationService = require('../utils/notificationService');
 const { logAudit } = require('../utils/auditLogger');
 
-// Obtener todas las áreas
+// Obtener todas las áreas (todos los usuarios pueden ver las áreas)
 router.get('/', auth, async (req, res) => {
     try {
         const areas = await Area.find();
@@ -16,7 +17,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Crear una nueva área (solo admin)
-router.post('/', auth, async (req, res) => {
+router.post('/', [auth, requirePermission('areas:manage')], async (req, res) => {
     const { name, description, color } = req.body;
     if (!name || !color) {
         return res.status(400).json({
@@ -69,7 +70,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // Editar un área (solo admin)
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', [auth, requirePermission('areas:manage')], async (req, res) => {
     try {
         const area = await Area.findById(req.params.id);
         if (!area) {
@@ -136,7 +137,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // Eliminar un área (solo admin)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', [auth, requirePermission('areas:manage')], async (req, res) => {
     try {
         const area = await Area.findById(req.params.id);
         if (!area) {

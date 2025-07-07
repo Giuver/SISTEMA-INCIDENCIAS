@@ -1,4 +1,5 @@
 import axios from 'axios';
+import sessionManager from './sessionManager';
 
 // Función helper para validar tokens
 const isValidToken = (token) => {
@@ -17,7 +18,7 @@ const isValidToken = (token) => {
 
 // Función helper para obtener token válido
 const getValidToken = () => {
-    const token = localStorage.getItem('token');
+    const token = sessionManager.getAuthData()?.token;
     if (isValidToken(token)) {
         return token;
     }
