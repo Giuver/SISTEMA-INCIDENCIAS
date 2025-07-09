@@ -23,6 +23,7 @@ import { apiService } from '../utils/apiService';
 import { useNotification } from '../utils/notification';
 import LoaderOverlay from '../components/LoaderOverlay';
 import sessionManager from '../utils/sessionManager';
+import { API_ENDPOINTS } from '../config/api';
 
 const prioridades = ['Baja', 'Media', 'Alta', 'Crítica'];
 
@@ -139,7 +140,7 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
 
     const fetchAreas = async () => {
         try {
-            const res = await apiService.get('/areas');
+            const res = await apiService.get(API_ENDPOINTS.AREAS);
             console.log('Áreas cargadas:', res);
             setCategorias(Array.isArray(res) ? res : []);
         } catch (err) {
@@ -151,7 +152,7 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
     const fetchIncidencia = async () => {
         if (!id) return;
         try {
-            const res = await apiService.get(`/incidents/${id}`);
+            const res = await apiService.get(API_ENDPOINTS.INCIDENTS + `/${id}`);
             setForm({
                 asunto: res.subject,
                 descripcion: res.description,
@@ -172,7 +173,7 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
         fetchIncidencia();
         // Cargar usuarios solo si es admin o soporte
         if (userRole === 'admin' || userRole === 'soporte') {
-            apiService.get('/users')
+            apiService.get(API_ENDPOINTS.USERS)
                 .then(res => setUsuarios(Array.isArray(res) ? res : []))
                 .catch((err) => {
                     console.error('Error al cargar usuarios:', err);
@@ -274,10 +275,10 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
 
             let res;
             if (id) {
-                res = await apiService.patch(`/incidents/${id}`, formData);
+                res = await apiService.patch(API_ENDPOINTS.INCIDENTS + `/${id}`, formData);
                 notify('Incidencia actualizada correctamente', 'success');
             } else {
-                res = await apiService.post('/incidents', formData);
+                res = await apiService.post(API_ENDPOINTS.INCIDENTS, formData);
                 notify('Incidencia creada correctamente', 'success');
             }
             if (isModal && onClose) {

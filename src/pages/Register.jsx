@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Container, Paper, Typography, TextField, Button, Alert, Box, MenuItem } from '@mui/material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { API_ENDPOINTS } from '../config/api';
 
 const Register = () => {
     const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'usuario' });
@@ -12,7 +13,7 @@ const Register = () => {
 
     React.useEffect(() => {
         // Consultar si hay usuarios para mostrar el selector de rol solo si no hay ninguno (primer registro)
-        axios.get('/api/users/count')
+        axios.get(`${API_ENDPOINTS.USERS}/count`)
             .then(res => {
                 if (res.data.count === 0) setShowRole(true);
             })
@@ -28,7 +29,7 @@ const Register = () => {
         setError('');
         setLoading(true);
         try {
-            const res = await axios.post('/api/users/register', form);
+            const res = await axios.post(`${API_ENDPOINTS.USERS}/register`, form);
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('role', res.data.rol || form.rol);
             navigate('/');

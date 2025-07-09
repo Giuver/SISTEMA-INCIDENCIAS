@@ -43,6 +43,7 @@ import LoaderOverlay from '../components/LoaderOverlay';
 import PersonIcon from '@mui/icons-material/Person';
 import EditIcon from '@mui/icons-material/Edit';
 import sessionManager from '../utils/sessionManager';
+import { API_ENDPOINTS } from '../config/api';
 
 const statusColors = {
     pendiente: 'warning',
@@ -111,7 +112,7 @@ const IncidentList = () => {
             if (filtros.asignado) params.append('assignedTo', filtros.asignado);
             if (filtros.search) params.append('search', filtros.search);
 
-            const res = await axios.get(`/api/incidents?${params.toString()}`, {
+            const res = await axios.get(`${API_ENDPOINTS.INCIDENTS}?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setIncidents(res.data.incidents || res.data);
@@ -127,7 +128,7 @@ const IncidentList = () => {
 
     const fetchAreas = async () => {
         try {
-            const res = await axios.get('/api/areas', {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/areas`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCategorias(res.data);
@@ -142,7 +143,7 @@ const IncidentList = () => {
             const userRole = role;
             // Solo cargar usuarios si es admin o soporte
             if (userRole === 'admin' || userRole === 'soporte') {
-                const res = await axios.get('/api/users', {
+                const res = await axios.get(`${API_ENDPOINTS.USERS}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setUsuarios(res.data);
@@ -234,7 +235,7 @@ const IncidentList = () => {
     const handleUpdateStatus = async () => {
         setUpdating(true);
         try {
-            await axios.patch(`/api/incidents/${selectedIncident._id}/estado`, {
+            await axios.patch(`${API_ENDPOINTS.INCIDENTS}/${selectedIncident._id}/estado`, {
                 status: newStatus,
                 comment: 'Cambio de estado desde el modal',
                 solution: newStatus === 'resuelto' ? solution : undefined
@@ -256,7 +257,7 @@ const IncidentList = () => {
     const handleUpdateAssigned = async () => {
         setUpdating(true);
         try {
-            await axios.patch(`/api/incidents/${selectedIncident._id}/asignar`, {
+            await axios.patch(`${API_ENDPOINTS.INCIDENTS}/${selectedIncident._id}/asignar`, {
                 assignedTo: newAssigned
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -275,7 +276,7 @@ const IncidentList = () => {
     const handleQuickEdit = async (id, field, value) => {
         setRowUpdating(id + field);
         try {
-            await axios.patch(`/api/incidents/${id}/asignar`, { assignedTo: value }, { headers: { Authorization: `Bearer ${token}` } });
+            await axios.patch(`${API_ENDPOINTS.INCIDENTS}/${id}/asignar`, { assignedTo: value }, { headers: { Authorization: `Bearer ${token}` } });
             notify('Responsable actualizado', 'success');
         } catch (err) {
             notify('Error al actualizar', 'error');
