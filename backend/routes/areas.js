@@ -117,7 +117,7 @@ router.put('/:id', [auth, requirePermission('areas:manage')], async (req, res) =
         try {
             await logAudit({
                 user: req.user.id,
-                action: 'actualizar',
+                action: 'editar',
                 entity: 'Area',
                 entityId: area._id,
                 changes: { before, after: req.body }

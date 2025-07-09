@@ -59,12 +59,12 @@ app.use((err, req, res, next) => {
 // Almacenar conexiones de usuarios
 const userSockets = new Map();
 
-// Conectar a MongoDB
-mongoose.connect('mongodb://localhost:27017/incident-management', {
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/incident-management';
+mongoose.connect(mongoUri, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })
-    .then(() => console.log('MongoDB conectado: localhost'))
+    .then(() => console.log('MongoDB conectado:', mongoUri))
     .catch(err => console.error('Error de conexión a MongoDB:', err));
 
 // Rutas

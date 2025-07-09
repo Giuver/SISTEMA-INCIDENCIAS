@@ -1,156 +1,134 @@
-#!/usr/bin/env node
-
-/**
- * Script para crear registros de auditoría de prueba
- */
-
 const mongoose = require('mongoose');
 const Audit = require('../models/Audit');
 const User = require('../models/User');
+const Incident = require('../models/Incident');
 
-async function createTestAuditData() {
+// Conectar a MongoDB
+mongoose.connect('mongodb://localhost:27017/incident-management', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
+
+async function createTestAudit() {
     try {
-        // Conectar a MongoDB
-        await mongoose.connect('mongodb://localhost:27017/incident-management', {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
+        console.log('🔍 Creando datos de prueba de auditoría...\n');
 
-        console.log('🔗 Conectado a MongoDB');
-
-        // Obtener un usuario existente para usar como referencia
-        const testUser = await User.findOne();
-        if (!testUser) {
-            console.error('❌ No se encontró ningún usuario en la base de datos');
+        // Obtener usuarios existentes
+        const users = await User.find();
+        if (users.length === 0) {
+            console.log('❌ No hay usuarios en el sistema. Crea usuarios primero.');
             return;
         }
 
-        console.log(`👤 Usando usuario de prueba: ${testUser.name} (${testUser._id})`);
+        // Obtener incidencias existentes
+        const incidents = await Incident.find();
+        if (incidents.length === 0) {
+            console.log('❌ No hay incidencias en el sistema. Crea incidencias primero.');
+            return;
+        }
+
+        // Limpiar auditoría existente
+        await Audit.deleteMany({});
+        console.log('🧹 Auditoría existente limpiada');
 
         // Crear registros de auditoría de prueba
-        const testAuditRecords = [
-            {
-                user: testUser._id,
-                action: 'crear_incidencia',
-                entity: 'Incident',
-                entityId: new mongoose.Types.ObjectId(),
-                changes: { subject: 'Incidencia de prueba 1', status: 'abierto' },
-                details: { priority: 'alta', area: 'Soporte Técnico' },
+        const auditRecords = [];
+
+        // Auditoría de login
+        users.forEach(user => {
+            auditRecords.push({
+                userId: user._id,
+                action: 'login',
+                resource: 'auth',
+                details: `Usuario ${user.name} inició sesión`,
                 ipAddress: '192.168.1.100',
                 userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'high',
-                timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 día atrás
-            },
-            {
-                user: testUser._id,
-                action: 'actualizar_incidencia',
-                entity: 'Incident',
-                entityId: new mongoose.Types.ObjectId(),
-                changes: { status: 'en_proceso', assignedTo: [testUser._id] },
-                details: { previousStatus: 'abierto', newStatus: 'en_proceso' },
-                ipAddress: '192.168.1.101',
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'normal',
-                timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000) // 12 horas atrás
-            },
-            {
-                user: testUser._id,
-                action: 'asignar_incidencia',
-                entity: 'Incident',
-                entityId: new mongoose.Types.ObjectId(),
-                changes: { assignedTo: [testUser._id] },
-                details: { assignedBy: testUser.name, assignedTo: testUser.name },
-                ipAddress: '192.168.1.102',
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'normal',
-                timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000) // 6 horas atrás
-            },
-            {
-                user: testUser._id,
-                action: 'cambiar_estado_incidencia',
-                entity: 'Incident',
-                entityId: new mongoose.Types.ObjectId(),
-                changes: { status: 'resuelto', solution: 'Problema solucionado' },
-                details: { previousStatus: 'en_proceso', resolutionTime: '2 horas' },
-                ipAddress: '192.168.1.103',
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'high',
-                timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 horas atrás
-            },
-            {
-                user: testUser._id,
-                action: 'subir_adjunto',
-                entity: 'Incident',
-                entityId: new mongoose.Types.ObjectId(),
-                changes: { attachment: 'documento.pdf' },
-                details: { fileName: 'documento.pdf', fileSize: '1.2MB', fileType: 'application/pdf' },
-                ipAddress: '192.168.1.104',
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'normal',
-                timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000) // 1 hora atrás
-            },
-            {
-                user: testUser._id,
-                action: 'iniciar_sesion',
-                entity: 'User',
-                entityId: testUser._id,
-                changes: { lastLogin: new Date() },
-                details: { loginMethod: 'email', sessionDuration: '2 horas' },
-                ipAddress: '192.168.1.105',
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'normal',
-                timestamp: new Date(Date.now() - 30 * 60 * 1000) // 30 minutos atrás
-            },
-            {
-                user: testUser._id,
-                action: 'ver_auditoria',
-                entity: 'Audit',
-                entityId: new mongoose.Types.ObjectId(),
-                changes: { viewed: true },
-                details: { filters: 'user=test,action=crear_incidencia', resultsCount: 5 },
-                ipAddress: '192.168.1.106',
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'normal',
-                timestamp: new Date(Date.now() - 15 * 60 * 1000) // 15 minutos atrás
-            },
-            {
-                user: testUser._id,
-                action: 'crear_area',
-                entity: 'Area',
-                entityId: new mongoose.Types.ObjectId(),
-                changes: { name: 'Nueva Área de Prueba', description: 'Área creada para pruebas' },
-                details: { createdBy: testUser.name, areaType: 'departamento' },
-                ipAddress: '192.168.1.107',
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                priority: 'high',
-                timestamp: new Date(Date.now() - 10 * 60 * 1000) // 10 minutos atrás
-            }
-        ];
-
-        // Insertar registros de auditoría
-        const createdAudits = await Audit.insertMany(testAuditRecords);
-
-        console.log(`✅ Se crearon ${createdAudits.length} registros de auditoría de prueba`);
-        console.log('📊 Registros creados:');
-
-        createdAudits.forEach((audit, index) => {
-            console.log(`   ${index + 1}. ${audit.action} - ${audit.entity} - ${audit.timestamp.toLocaleString()}`);
+                timestamp: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000) // Últimos 7 días
+            });
         });
 
-        console.log('\n🎯 Ahora puedes ver estos registros en el módulo de auditoría del frontend');
-        console.log('🔍 Los registros incluyen diferentes tipos de acciones y prioridades');
+        // Auditoría de creación de incidencias
+        incidents.forEach(incident => {
+            auditRecords.push({
+                userId: incident.createdBy,
+                action: 'crear',
+                resource: 'incident',
+                resourceId: incident._id,
+                details: `Incidencia "${incident.title}" creada`,
+                ipAddress: '192.168.1.101',
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                timestamp: incident.createdAt
+            });
+        });
+
+        // Auditoría de cambios de estado
+        incidents.forEach(incident => {
+            if (incident.status !== 'pendiente') {
+                auditRecords.push({
+                    userId: incident.assignedTo || incident.createdBy,
+                    action: 'cambiar_estado',
+                    resource: 'incident',
+                    resourceId: incident._id,
+                    details: `Estado cambiado a "${incident.status}"`,
+                    ipAddress: '192.168.1.102',
+                    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    timestamp: new Date(incident.createdAt.getTime() + Math.random() * 24 * 60 * 60 * 1000)
+                });
+            }
+        });
+
+        // Auditoría de asignaciones
+        incidents.filter(incident => incident.assignedTo).forEach(incident => {
+            auditRecords.push({
+                userId: incident.createdBy,
+                action: 'asignar',
+                resource: 'incident',
+                resourceId: incident._id,
+                details: `Incidencia asignada a usuario ${incident.assignedTo}`,
+                ipAddress: '192.168.1.103',
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                timestamp: new Date(incident.createdAt.getTime() + Math.random() * 12 * 60 * 60 * 1000)
+            });
+        });
+
+        // Auditoría de ediciones
+        incidents.forEach(incident => {
+            if (incident.updatedAt > incident.createdAt) {
+                auditRecords.push({
+                    userId: incident.assignedTo || incident.createdBy,
+                    action: 'editar',
+                    resource: 'incident',
+                    resourceId: incident._id,
+                    details: `Incidencia "${incident.title}" editada`,
+                    ipAddress: '192.168.1.104',
+                    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    timestamp: incident.updatedAt
+                });
+            }
+        });
+
+        // Insertar registros de auditoría
+        await Audit.insertMany(auditRecords);
+
+        console.log(`✅ ${auditRecords.length} registros de auditoría creados`);
+        console.log('\n📊 Tipos de acciones creadas:');
+
+        const actionStats = {};
+        auditRecords.forEach(record => {
+            actionStats[record.action] = (actionStats[record.action] || 0) + 1;
+        });
+
+        Object.keys(actionStats).forEach(action => {
+            console.log(`  - ${action}: ${actionStats[action]}`);
+        });
+
+        console.log('\n✅ Datos de prueba de auditoría creados exitosamente');
 
     } catch (error) {
-        console.error('❌ Error creando datos de auditoría de prueba:', error);
+        console.error('❌ Error creando datos de prueba:', error);
     } finally {
-        await mongoose.disconnect();
-        console.log('🔌 Desconectado de MongoDB');
+        mongoose.connection.close();
     }
 }
 
-// Ejecutar el script
-if (require.main === module) {
-    createTestAuditData();
-}
-
-module.exports = { createTestAuditData }; 
+createTestAudit(); 

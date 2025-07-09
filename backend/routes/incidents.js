@@ -218,10 +218,50 @@ router.get('/:id', [auth, requireAnyPermission(['incidents:read:all', 'incidents
 // Obtener todas las incidencias (filtradas por rol)
 router.get('/', [auth, filterIncidentsByRole], async (req, res) => {
     try {
-        const incidents = await Incident.find(req.incidentFilter)
+        // PAGINACIÓN
+        let { page = 1, limit = 10 } = req.query;
+        page = parseInt(page);
+        limit = parseInt(limit);
+        if (isNaN(page) || page < 1) page = 1;
+        if (isNaN(limit) || limit < 1) limit = 10;
+
+        // FILTROS
+        let filter = { ...req.incidentFilter };
+
+        // Filtro por estado
+        if (req.query.status) {
+            filter.status = req.query.status;
+        }
+
+        // Filtro por prioridad
+        if (req.query.priority) {
+            filter.priority = req.query.priority;
+        }
+
+        // Filtro por área
+        if (req.query.area) {
+            filter.area = req.query.area;
+        }
+
+        // Filtro por asignado
+        if (req.query.assignedTo) {
+            filter.assignedTo = req.query.assignedTo;
+        }
+
+        // Filtro de búsqueda por asunto
+        if (req.query.search) {
+            filter.subject = { $regex: req.query.search, $options: 'i' };
+        }
+
+        const skip = (page - 1) * limit;
+        const total = await Incident.countDocuments(filter);
+
+        const incidents = await Incident.find(filter)
             .populate('assignedTo', 'name email')
             .populate('createdBy', 'name email')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
         // Asegurarse de que todos los campos necesarios estén presentes
         const safeIncidents = incidents.map(incident => {
@@ -236,7 +276,12 @@ router.get('/', [auth, filterIncidentsByRole], async (req, res) => {
             };
         });
 
-        res.json(safeIncidents);
+        res.json({
+            incidents: safeIncidents,
+            total,
+            page,
+            limit
+        });
     } catch (error) {
         console.error('Error al obtener incidencias:', error);
         res.status(500).json({
@@ -465,9 +510,9 @@ router.patch('/:id', [auth, requireAnyPermission(['incidents:update:all', 'incid
 
         // Auditoría
         if (req.user && req.user.id) {
-            logAudit({
+            await logAudit({
                 user: req.user.id,
-                action: AUDIT_ACTIONS.INCIDENT_UPDATE,
+                action: 'editar',
                 entity: 'Incident',
                 entityId: updatedIncident._id,
                 changes: { before, after: req.body },
@@ -604,6 +649,41 @@ router.patch('/:id/estado', [auth, requireAnyPermission(['incidents:update:all',
         res.json(addEstadoAlias(updatedIncident));
     } catch (error) {
         res.status(400).json({ message: error.message });
+    }
+});
+
+// Actualizar solo la asignación de una incidencia
+router.patch('/:id/asignar', auth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assignedTo } = req.body;
+        const before = await Incident.findById(id);
+        if (!before) {
+            return res.status(404).json({ message: 'Incidencia no encontrada' });
+        }
+        before.assignedTo = assignedTo;
+        const updatedIncident = await before.save();
+
+        // Auditoría
+        try {
+            await logAudit({
+                user: req.user.id,
+                action: 'editar',
+                entity: 'Incident',
+                entityId: updatedIncident._id,
+                changes: { before: { assignedTo: before.assignedTo }, after: { assignedTo } },
+                details: { assignedChanged: true },
+                ipAddress: req.ip,
+                userAgent: req.get('User-Agent')
+            });
+        } catch (auditError) {
+            console.error('Error al registrar auditoría de asignación:', auditError);
+        }
+
+        res.json(updatedIncident);
+    } catch (error) {
+        console.error('Error al actualizar asignación de incidencia:', error);
+        res.status(500).json({ message: 'Error al actualizar la asignación de la incidencia' });
     }
 });
 

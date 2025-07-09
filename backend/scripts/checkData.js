@@ -1,164 +1,85 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
-const Category = require('../models/Category');
 const Incident = require('../models/Incident');
-
-const connectDB = async () => {
-    try {
-        const conn = await mongoose.connect('mongodb://localhost:27017/incident-management', {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
-        console.log(`MongoDB conectado: ${conn.connection.host}`);
-    } catch (error) {
-        console.error(`Error: ${error.message}`);
-        process.exit(1);
-    }
-};
-
-const checkAndCreateData = async () => {
-    try {
-        await connectDB();
-
-        // Verificar usuarios
-        const userCount = await User.countDocuments();
-        console.log(`Usuarios en la base de datos: ${userCount}`);
-
-        if (userCount === 0) {
-            console.log('Creando usuario administrador...');
-            const bcrypt = require('bcryptjs');
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash('admin123', salt);
-
-            const adminUser = new User({
-                name: 'Administrador',
-                email: 'admin@example.com',
-                password: hashedPassword,
-                role: 'admin'
-            });
-            await adminUser.save();
-            console.log('Usuario administrador creado: admin@example.com / admin123');
-        }
-
-        // Verificar categorías
-        const categoryCount = await Category.countDocuments();
-        console.log(`Categorías en la base de datos: ${categoryCount}`);
-
-        if (categoryCount === 0) {
-            console.log('Creando categorías de ejemplo...');
-            const categories = [
-                { name: 'Hardware', description: 'Problemas con equipos físicos', color: '#FF5722' },
-                { name: 'Software', description: 'Problemas con aplicaciones', color: '#2196F3' },
-                { name: 'Red', description: 'Problemas de conectividad', color: '#4CAF50' },
-                { name: 'Usuario', description: 'Solicitudes de usuario', color: '#FF9800' }
-            ];
-
-            for (const cat of categories) {
-                const category = new Category(cat);
-                await category.save();
-            }
-            console.log('Categorías creadas');
-        }
-
-        // Verificar incidencias
-        const incidentCount = await Incident.countDocuments();
-        console.log(`Incidencias en la base de datos: ${incidentCount}`);
-
-        if (incidentCount === 0) {
-            console.log('Creando incidencias de ejemplo...');
-            const users = await User.find();
-            const categories = await Category.find();
-
-            if (users.length > 0 && categories.length > 0) {
-                const incidents = [
-                    {
-                        subject: 'Problema con impresora',
-                        description: 'La impresora no imprime correctamente',
-                        category: categories[0].name,
-                        priority: 'Media',
-                        status: 'pendiente',
-                        createdBy: users[0]._id
-                    },
-                    {
-                        subject: 'Error en aplicación',
-                        description: 'La aplicación se cierra inesperadamente',
-                        category: categories[1].name,
-                        priority: 'Alta',
-                        status: 'en_proceso',
-                        createdBy: users[0]._id
-                    }
-                ];
-
-                for (const inc of incidents) {
-                    const incident = new Incident(inc);
-                    await incident.save();
-                }
-                console.log('Incidencias de ejemplo creadas');
-            }
-        }
-
-        console.log('Verificación completada');
-        process.exit(0);
-    } catch (error) {
-        console.error('Error:', error);
-        process.exit(1);
-    }
-};
-
-checkAndCreateData();
+const Area = require('../models/Area');
+const Audit = require('../models/Audit');
+const Notification = require('../models/Notification');
 
 // Conectar a MongoDB
-mongoose.connect('mongodb://localhost:27017/incidencias', {
+mongoose.connect('mongodb://localhost:27017/incident-management', {
     useNewUrlParser: true,
     useUnifiedTopology: true
-})
-    .then(async () => {
-        console.log('MongoDB conectado');
+});
 
-        try {
-            // Contar incidencias
-            const totalIncidents = await Incident.countDocuments();
-            console.log(`Total de incidencias: ${totalIncidents}`);
+async function checkData() {
+    try {
+        console.log('🔍 Verificando datos del sistema...\n');
 
-            // Obtener todas las incidencias
-            const incidents = await Incident.find()
-                .populate('assignedTo', 'name email')
-                .populate('createdBy', 'name email');
+        // Verificar usuarios
+        const users = await User.find();
+        console.log(`👥 Usuarios: ${users.length}`);
+        users.forEach(user => {
+            console.log(`  - ${user.name} (${user.email}) - Rol: ${user.role}`);
+        });
 
-            console.log('\nDetalles de las incidencias:');
-            incidents.forEach(incident => {
-                console.log(`\nID: ${incident._id}`);
-                console.log(`Asunto: ${incident.subject}`);
-                console.log(`Estado: ${incident.status}`);
-                console.log(`Categoría: ${incident.category}`);
-                console.log(`Prioridad: ${incident.priority}`);
-                console.log(`Creado por: ${incident.createdBy?.name || 'No disponible'}`);
-                console.log(`Asignado a: ${incident.assignedTo?.name || 'No asignado'}`);
-                console.log('------------------------');
-            });
+        // Verificar áreas
+        const areas = await Area.find();
+        console.log(`\n📊 Áreas: ${areas.length}`);
+        areas.forEach(area => {
+            console.log(`  - ${area.name} (${area.description})`);
+        });
 
-            // Estadísticas por estado
-            const stats = await Incident.aggregate([
-                {
-                    $group: {
-                        _id: '$status',
-                        count: { $sum: 1 }
-                    }
+        // Verificar incidencias
+        const incidents = await Incident.find();
+        console.log(`\n📋 Incidencias: ${incidents.length}`);
+
+        // Estadísticas de incidencias por estado
+        const stats = await Incident.aggregate([
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 }
                 }
-            ]);
+            }
+        ]);
 
-            console.log('\nEstadísticas por estado:');
-            stats.forEach(stat => {
-                console.log(`${stat._id || 'Sin estado'}: ${stat.count}`);
-            });
+        console.log('  Estados de incidencias:');
+        stats.forEach(stat => {
+            console.log(`    - ${stat._id}: ${stat.count}`);
+        });
 
-        } catch (error) {
-            console.error('Error al verificar datos:', error);
-        } finally {
-            mongoose.connection.close();
+        // Verificar auditoría
+        const audits = await Audit.find();
+        console.log(`\n📝 Registros de auditoría: ${audits.length}`);
+
+        // Verificar notificaciones
+        const notifications = await Notification.find();
+        console.log(`\n🔔 Notificaciones: ${notifications.length}`);
+
+        // Verificar integridad de datos
+        console.log('\n🔍 Verificando integridad de datos...');
+
+        // Usuarios sin email
+        const usersWithoutEmail = await User.find({ email: { $exists: false } });
+        if (usersWithoutEmail.length > 0) {
+            console.log(`⚠️  Usuarios sin email: ${usersWithoutEmail.length}`);
         }
-    })
-    .catch(err => {
-        console.error('Error de conexión:', err);
-        process.exit(1);
-    }); 
+
+        // Incidencias sin asignar
+        const unassignedIncidents = await Incident.find({ assignedTo: { $exists: false } });
+        console.log(`📋 Incidencias sin asignar: ${unassignedIncidents.length}`);
+
+        // Incidencias sin área
+        const incidentsWithoutArea = await Incident.find({ area: { $exists: false } });
+        console.log(`📋 Incidencias sin área: ${incidentsWithoutArea.length}`);
+
+        console.log('\n✅ Verificación de datos completada');
+
+    } catch (error) {
+        console.error('❌ Error durante la verificación:', error);
+    } finally {
+        mongoose.connection.close();
+    }
+}
+
+checkData(); 

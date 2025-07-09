@@ -1,90 +1,96 @@
-#!/usr/bin/env node
-
-/**
- * Script para migrar categorías existentes a áreas
- */
-
 const mongoose = require('mongoose');
-const Area = require('../models/Area');
 const Incident = require('../models/Incident');
-require('dotenv').config();
+const Area = require('../models/Area');
+
+// Conectar a MongoDB
+mongoose.connect('mongodb://localhost:27017/incident-management', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
 
 async function migrateCategoriesToAreas() {
     try {
-        // Conectar a MongoDB
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/incident-management');
-        console.log('✅ Conectado a MongoDB');
+        console.log('🔄 Migrando categorías a áreas...\n');
 
-        // Verificar si ya existen áreas
-        const existingAreas = await Area.find();
-        if (existingAreas.length > 0) {
-            console.log('⚠️  Ya existen áreas en la base de datos. Saltando migración.');
-            console.log(`Áreas existentes: ${existingAreas.map(a => a.name).join(', ')}`);
+        // Obtener todas las incidencias con categorías
+        const incidentsWithCategories = await Incident.find({
+            category: { $exists: true, $ne: null }
+        });
+
+        if (incidentsWithCategories.length === 0) {
+            console.log('✅ No hay incidencias con categorías para migrar');
             return;
         }
 
-        // Crear áreas por defecto
-        const defaultAreas = [
-            { name: 'Soporte Técnico', description: 'Problemas técnicos y de hardware', color: '#2196F3' },
-            { name: 'Software', description: 'Problemas con aplicaciones y software', color: '#4CAF50' },
-            { name: 'Redes', description: 'Problemas de conectividad y red', color: '#FF9800' },
-            { name: 'Seguridad', description: 'Problemas de seguridad y acceso', color: '#F44336' },
-            { name: 'Administrativo', description: 'Problemas administrativos y de procesos', color: '#9C27B0' },
-            { name: 'Otros', description: 'Otros tipos de problemas', color: '#607D8B' }
-        ];
+        console.log(`📋 Encontradas ${incidentsWithCategories.length} incidencias con categorías`);
 
-        console.log('🔄 Creando áreas por defecto...');
-        const createdAreas = await Area.insertMany(defaultAreas);
-        console.log(`✅ Creadas ${createdAreas.length} áreas por defecto`);
+        // Obtener categorías únicas
+        const uniqueCategories = [...new Set(incidentsWithCategories.map(incident => incident.category))];
+        console.log(`📊 Categorías únicas encontradas: ${uniqueCategories.length}`);
+        uniqueCategories.forEach(category => console.log(`  - ${category}`));
 
-        // Migrar incidencias existentes
-        console.log('🔄 Migrando incidencias existentes...');
-        const incidents = await Incident.find({});
+        // Crear áreas basadas en categorías
+        const areaMapping = {};
+        for (const category of uniqueCategories) {
+            // Verificar si ya existe un área con ese nombre
+            let area = await Area.findOne({ name: category });
 
-        let updatedCount = 0;
-        for (const incident of incidents) {
-            // Si la incidencia tiene category, migrarla a area
-            if (incident.category && !incident.area) {
-                // Buscar un área que coincida con la categoría
-                let targetArea = await Area.findOne({ name: incident.category });
+            if (!area) {
+                // Crear nueva área
+                area = new Area({
+                    name: category,
+                    description: `Área migrada desde categoría: ${category}`,
+                    isActive: true
+                });
+                await area.save();
+                console.log(`✅ Área creada: ${category}`);
+            } else {
+                console.log(`ℹ️  Área ya existe: ${category}`);
+            }
 
-                // Si no existe, usar "Otros" como área por defecto
-                if (!targetArea) {
-                    targetArea = await Area.findOne({ name: 'Otros' });
-                }
+            areaMapping[category] = area._id;
+        }
 
-                if (targetArea) {
-                    incident.area = targetArea.name;
-                    await incident.save();
-                    updatedCount++;
-                }
+        // Migrar incidencias
+        let migratedCount = 0;
+        for (const incident of incidentsWithCategories) {
+            if (incident.category && areaMapping[incident.category]) {
+                await Incident.findByIdAndUpdate(incident._id, {
+                    $set: {
+                        area: areaMapping[incident.category],
+                        category: undefined // Remover categoría
+                    }
+                });
+                migratedCount++;
             }
         }
 
-        console.log(`✅ Migradas ${updatedCount} incidencias`);
+        console.log(`\n✅ Migración completada:`);
+        console.log(`  - Incidencias migradas: ${migratedCount}`);
+        console.log(`  - Áreas creadas: ${Object.keys(areaMapping).length}`);
 
-        // Mostrar estadísticas finales
-        const finalAreas = await Area.find();
-        const finalIncidents = await Incident.find();
+        // Verificar resultado
+        const incidentsWithAreas = await Incident.find({ area: { $exists: true, $ne: null } });
+        const remainingIncidentsWithCategories = await Incident.find({ category: { $exists: true, $ne: null } });
 
-        console.log('\n📊 ESTADÍSTICAS FINALES:');
-        console.log(`   Áreas creadas: ${finalAreas.length}`);
-        console.log(`   Incidencias migradas: ${updatedCount}`);
-        console.log(`   Total de incidencias: ${finalIncidents.length}`);
+        console.log(`\n📊 Resultado de la migración:`);
+        console.log(`  - Incidencias con áreas: ${incidentsWithAreas.length}`);
+        console.log(`  - Incidencias con categorías: ${remainingIncidentsWithCategories.length}`);
 
-        console.log('\n✅ Migración completada exitosamente');
+        // Mostrar áreas creadas
+        const allAreas = await Area.find();
+        console.log(`\n📊 Áreas en el sistema:`);
+        allAreas.forEach(area => {
+            console.log(`  - ${area.name} (${area.description})`);
+        });
+
+        console.log('\n✅ Migración de categorías a áreas completada exitosamente');
 
     } catch (error) {
         console.error('❌ Error durante la migración:', error);
     } finally {
-        await mongoose.disconnect();
-        console.log('🔌 Desconectado de MongoDB');
+        mongoose.connection.close();
     }
 }
 
-// Ejecutar la migración
-if (require.main === module) {
-    migrateCategoriesToAreas();
-}
-
-module.exports = { migrateCategoriesToAreas }; 
+migrateCategoriesToAreas(); 

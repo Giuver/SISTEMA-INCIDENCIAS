@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { auditAPI, userAPI } from '../utils/apiService';
 import sessionManager from '../utils/sessionManager';
+import axios from 'axios'; // Added axios import
 
 const actions = [
     'crear',
@@ -37,7 +38,7 @@ const entities = [
 ];
 
 const AuditLog = () => {
-    const [audits, setAudits] = useState([]);
+    const [logs, setLogs] = useState([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -55,7 +56,7 @@ const AuditLog = () => {
     }, []);
 
     useEffect(() => {
-        fetchAudits();
+        fetchLogs();
         // eslint-disable-next-line
     }, [page, rowsPerPage]);
 
@@ -71,42 +72,25 @@ const AuditLog = () => {
         }
     };
 
-    const fetchAudits = async () => {
+    const fetchLogs = async () => {
         setLoading(true);
         setError(null);
         try {
+            const token = sessionManager.getAuthData()?.token;
             const params = {
                 ...filters,
                 page: page + 1,
                 limit: rowsPerPage
             };
-            const response = await auditAPI.getAll(params);
-            setAudits(response.logs);
-            setTotal(response.total);
-        } catch (e) {
-            console.error('❌ Error al cargar auditoría:', e);
-
-            // Manejar errores específicos
-            if (e.status === 401) {
-                setError('❌ Error de autenticación: Token inválido o expirado. Por favor, inicia sesión nuevamente.');
-                // Limpiar localStorage y redirigir después de mostrar el error
-                setTimeout(() => {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('role');
-                    localStorage.removeItem('userId');
-                    window.location.href = '/login';
-                }, 5000);
-            } else if (e.status === 403) {
-                setError('❌ Acceso denegado: No tienes permisos para ver esta página.');
-            } else if (e.status === 404) {
-                setError('❌ Recurso no encontrado: La página de auditoría no está disponible.');
-            } else if (e.status === 500) {
-                setError('❌ Error del servidor: Problema interno del servidor. Intenta más tarde.');
-            } else {
-                setError(`❌ Error al cargar auditoría: ${e.message}`);
-            }
-
-            setAudits([]);
+            const res = await axios.get('/api/audit', {
+                headers: { Authorization: `Bearer ${token}` },
+                params
+            });
+            setLogs(res.data.logs || []);
+            setTotal(res.data.total || 0);
+        } catch (err) {
+            console.error('❌ Error al cargar auditoría:', err);
+            setLogs([]);
             setTotal(0);
         } finally {
             setLoading(false);
@@ -120,7 +104,7 @@ const AuditLog = () => {
     const handleFilterSubmit = (e) => {
         e.preventDefault();
         setPage(0);
-        fetchAudits();
+        fetchLogs();
     };
 
     const handleChangePage = (event, newPage) => {
@@ -268,32 +252,32 @@ const AuditLog = () => {
                                                 <CircularProgress size={28} />
                                             </TableCell>
                                         </TableRow>
-                                    ) : audits.length === 0 ? (
+                                    ) : logs.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={5} align="center">
                                                 No hay registros de auditoría.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        audits.map((a) => (
-                                            <TableRow key={a._id}>
-                                                <TableCell>{new Date(a.timestamp).toLocaleString('es-ES')}</TableCell>
+                                        logs.map((log) => (
+                                            <TableRow key={log._id}>
+                                                <TableCell>{new Date(log.timestamp).toLocaleString('es-ES')}</TableCell>
                                                 <TableCell>
-                                                    {a.user ? (
+                                                    {log.user ? (
                                                         <>
-                                                            <Chip label={a.user.name} size="small" color="info" />
-                                                            <Typography variant="caption" color="text.secondary" display="block">{a.user.email}</Typography>
+                                                            <Chip label={log.user.name} size="small" color="info" />
+                                                            <Typography variant="caption" color="text.secondary" display="block">{log.user.email}</Typography>
                                                         </>
                                                     ) : '—'}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Chip label={a.action} size="small" color="primary" />
+                                                    <Chip label={log.action} size="small" color="primary" />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Chip label={a.entity} size="small" color="secondary" />
+                                                    <Chip label={log.entity} size="small" color="secondary" />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <pre style={{ margin: 0, fontSize: 12, background: '#f5f5f5', borderRadius: 4, padding: 6, maxWidth: 320, overflowX: 'auto' }}>{JSON.stringify(a.changes, null, 2)}</pre>
+                                                    <pre style={{ margin: 0, fontSize: 12, background: '#f5f5f5', borderRadius: 4, padding: 6, maxWidth: 320, overflowX: 'auto' }}>{JSON.stringify(log.changes, null, 2)}</pre>
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -305,9 +289,9 @@ const AuditLog = () => {
                             component="div"
                             count={total}
                             page={page}
-                            onPageChange={handleChangePage}
+                            onPageChange={(e, newPage) => setPage(newPage)}
                             rowsPerPage={rowsPerPage}
-                            onRowsPerPageChange={handleChangeRowsPerPage}
+                            onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
                             rowsPerPageOptions={[5, 10, 20, 50]}
                         />
                     </Paper>

@@ -19,7 +19,7 @@ import {
     Chip
 } from '@mui/material';
 import { AttachFile as AttachFileIcon } from '@mui/icons-material';
-import axios from 'axios';
+import { apiService } from '../utils/apiService';
 import { useNotification } from '../utils/notification';
 import LoaderOverlay from '../components/LoaderOverlay';
 import sessionManager from '../utils/sessionManager';
@@ -139,11 +139,11 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
 
     const fetchAreas = async () => {
         try {
-            const res = await axios.get('/api/areas', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setCategorias(res.data);
+            const res = await apiService.get('/areas');
+            console.log('Áreas cargadas:', res);
+            setCategorias(Array.isArray(res) ? res : []);
         } catch (err) {
+            console.error('Error al cargar áreas:', err);
             setCategorias([]);
         }
     };
@@ -151,19 +151,17 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
     const fetchIncidencia = async () => {
         if (!id) return;
         try {
-            const res = await axios.get(`/api/incidents/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await apiService.get(`/incidents/${id}`);
             setForm({
-                asunto: res.data.subject,
-                descripcion: res.data.description,
-                prioridad: res.data.priority,
-                categoria: res.data.area || '',
+                asunto: res.subject,
+                descripcion: res.description,
+                prioridad: res.priority,
+                categoria: res.area || '',
                 adjunto: null,
-                tags: res.data.tags || []
+                tags: res.tags || []
             });
             // Cargar usuarios asignados
-            setAsignados(res.data.assignedTo || []);
+            setAsignados(res.assignedTo || []);
         } catch (err) {
             setError('No se pudo cargar la incidencia');
         }
@@ -174,9 +172,12 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
         fetchIncidencia();
         // Cargar usuarios solo si es admin o soporte
         if (userRole === 'admin' || userRole === 'soporte') {
-            axios.get('/api/users', { headers: { Authorization: `Bearer ${token}` } })
-                .then(res => setUsuarios(res.data))
-                .catch(() => setUsuarios([]));
+            apiService.get('/users')
+                .then(res => setUsuarios(Array.isArray(res) ? res : []))
+                .catch((err) => {
+                    console.error('Error al cargar usuarios:', err);
+                    setUsuarios([]);
+                });
         } else {
             setUsuarios([]);
         }
@@ -273,14 +274,10 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
 
             let res;
             if (id) {
-                res = await axios.patch(`/api/incidents/${id}`, formData, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                res = await apiService.patch(`/incidents/${id}`, formData);
                 notify('Incidencia actualizada correctamente', 'success');
             } else {
-                res = await axios.post('/api/incidents', formData, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                res = await apiService.post('/incidents', formData);
                 notify('Incidencia creada correctamente', 'success');
             }
             if (isModal && onClose) {
@@ -410,7 +407,7 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
                                 disabled={isReadOnly}
                                 inputProps={{ 'aria-label': 'Área de la incidencia' }}
                             >
-                                {categorias.map(c => (
+                                {(categorias || []).map(c => (
                                     <MenuItem key={c._id} value={c.name}>{c.name}</MenuItem>
                                 ))}
                             </Select>
@@ -471,7 +468,7 @@ const IncidentForm = ({ id: propId, onClose, isModal }) => {
                         <Autocomplete
                             multiple
                             id="asignados"
-                            options={usuarios}
+                            options={usuarios || []}
                             getOptionLabel={option => option.name}
                             value={asignados}
                             onChange={handleAsignadosChange}
