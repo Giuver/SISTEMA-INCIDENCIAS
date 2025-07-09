@@ -74,6 +74,7 @@ const IncidentList = () => {
     const notify = useNotification();
     const [loading, setLoading] = useState(true);
     const [errorUsers, setErrorUsers] = useState(false);
+    const [total, setTotal] = useState(0);
 
     // Control de permisos por rol
     // Solo admin y soporte pueden realizar acciones sobre incidencias
@@ -97,12 +98,27 @@ const IncidentList = () => {
     const fetchIncidents = async () => {
         setLoading(true);
         try {
-            const res = await axios.get('/api/incidents', {
+            // Construir query params con filtros
+            const params = new URLSearchParams({
+                page: page + 1,
+                limit: rowsPerPage
+            });
+
+            // Agregar filtros si están activos
+            if (filtros.estado) params.append('status', filtros.estado);
+            if (filtros.prioridad) params.append('priority', filtros.prioridad);
+            if (filtros.categoria) params.append('area', filtros.categoria);
+            if (filtros.asignado) params.append('assignedTo', filtros.asignado);
+            if (filtros.search) params.append('search', filtros.search);
+
+            const res = await axios.get(`/api/incidents?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setIncidents(res.data);
+            setIncidents(res.data.incidents || res.data);
+            setTotal(res.data.total || 0);
         } catch (err) {
             setIncidents([]);
+            setTotal(0);
             notify('No se pudieron cargar las incidencias', 'error');
         } finally {
             setLoading(false);
@@ -145,6 +161,9 @@ const IncidentList = () => {
 
     useEffect(() => {
         fetchIncidents();
+    }, [page, rowsPerPage, filtros]);
+
+    useEffect(() => {
         fetchAreas();
         fetchUsuarios();
     }, []);
@@ -161,15 +180,7 @@ const IncidentList = () => {
         setFiltros({ ...filtros, [e.target.name]: e.target.value });
     };
 
-    const filtrarIncidencias = () => {
-        return incidents.filter(i =>
-            (!filtros.estado || i.status === filtros.estado) &&
-            (!filtros.prioridad || i.priority === filtros.prioridad) &&
-            (!filtros.categoria || i.area === filtros.categoria) &&
-            (!filtros.asignado || (i.assignedTo && i.assignedTo._id === filtros.asignado)) &&
-            (!filtros.search || i.subject?.toLowerCase().includes(filtros.search.toLowerCase()))
-        );
-    };
+    // Función eliminada - los filtros ahora se aplican en el backend
 
     const handleViewIncident = (incident) => {
         setSelectedIncident(incident);
@@ -191,7 +202,7 @@ const IncidentList = () => {
     };
 
     const exportToExcel = () => {
-        const data = filtrarIncidencias().map(i => ({
+        const data = incidents.map(i => ({
             Asunto: i.subject,
             Estado: i.status,
             Prioridad: i.priority,
@@ -350,107 +361,105 @@ const IncidentList = () => {
                                         <CircularProgress />
                                     </TableCell>
                                 </TableRow>
-                            ) : filtrarIncidencias().length === 0 ? (
+                            ) : incidents.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={7} align="center">
                                         No hay incidencias registradas.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filtrarIncidencias()
-                                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                                    .map((i) => (
-                                        <TableRow key={i._id} role="row">
-                                            <TableCell role="cell">{i.subject}</TableCell>
-                                            <TableCell role="cell">
-                                                {canManageIncidents ? (
-                                                    <FormControl size="small" variant="standard">
-                                                        <Select
-                                                            value={i.status}
-                                                            onChange={e => handleQuickEdit(i._id, 'status', e.target.value)}
-                                                            disabled={rowUpdating === i._id + 'status'}
-                                                            inputProps={{ 'aria-label': 'Estado de la incidencia' }}
-                                                            sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
-                                                        >
-                                                            {estados.map(e => <MenuItem key={e} value={e}>{e}</MenuItem>)}
-                                                        </Select>
-                                                        {rowUpdating === i._id + 'status' && <CircularProgress size={18} sx={{ ml: 1 }} />}
-                                                    </FormControl>
-                                                ) : (
-                                                    <Chip label={i.status} color={statusColors[i.status]} sx={{ fontWeight: 'bold' }} />
-                                                )}
-                                            </TableCell>
-                                            <TableCell role="cell">
-                                                {canManageIncidents ? (
-                                                    <FormControl size="small" variant="standard">
-                                                        <Select
-                                                            value={i.priority}
-                                                            onChange={e => handleQuickEdit(i._id, 'priority', e.target.value)}
-                                                            disabled={rowUpdating === i._id + 'priority'}
-                                                            inputProps={{ 'aria-label': 'Prioridad de la incidencia' }}
-                                                            sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
-                                                        >
-                                                            {prioridades.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-                                                        </Select>
-                                                        {rowUpdating === i._id + 'priority' && <CircularProgress size={18} sx={{ ml: 1 }} />}
-                                                    </FormControl>
-                                                ) : (
-                                                    <Chip label={i.priority} color={priorityColors[i.priority]} sx={{ fontWeight: 'bold' }} />
-                                                )}
-                                            </TableCell>
-                                            <TableCell role="cell">{i.area || 'Sin área'}</TableCell>
-                                            <TableCell role="cell">
-                                                {Array.isArray(i.assignedTo) && i.assignedTo.length > 0 ? (
-                                                    <Tooltip title={i.assignedTo.map(u => u.name).join(', ')} arrow>
-                                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                            {i.assignedTo.slice(0, 2).map(u => (
-                                                                <Chip key={u._id} label={u.name} size="small" color="primary" icon={<PersonIcon />} />
-                                                            ))}
-                                                            {i.assignedTo.length > 2 && (
-                                                                <Chip label={`+${i.assignedTo.length - 2}`} size="small" color="primary" />
-                                                            )}
-                                                        </Box>
-                                                    </Tooltip>
-                                                ) : (
-                                                    <Chip label="Sin asignar" size="small" color="default" variant="outlined" />
-                                                )}
-                                            </TableCell>
-                                            <TableCell role="cell">{new Date(i.createdAt).toLocaleDateString()}</TableCell>
-                                            <TableCell role="cell" align="right">
-                                                <Tooltip title="Ver detalles de la incidencia" arrow>
+                                incidents.map((i) => (
+                                    <TableRow key={i._id} role="row">
+                                        <TableCell role="cell">{i.subject}</TableCell>
+                                        <TableCell role="cell">
+                                            {canManageIncidents ? (
+                                                <FormControl size="small" variant="standard">
+                                                    <Select
+                                                        value={i.status}
+                                                        onChange={e => handleQuickEdit(i._id, 'status', e.target.value)}
+                                                        disabled={rowUpdating === i._id + 'status'}
+                                                        inputProps={{ 'aria-label': 'Estado de la incidencia' }}
+                                                        sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                    >
+                                                        {estados.map(e => <MenuItem key={e} value={e}>{e}</MenuItem>)}
+                                                    </Select>
+                                                    {rowUpdating === i._id + 'status' && <CircularProgress size={18} sx={{ ml: 1 }} />}
+                                                </FormControl>
+                                            ) : (
+                                                <Chip label={i.status} color={statusColors[i.status]} sx={{ fontWeight: 'bold' }} />
+                                            )}
+                                        </TableCell>
+                                        <TableCell role="cell">
+                                            {canManageIncidents ? (
+                                                <FormControl size="small" variant="standard">
+                                                    <Select
+                                                        value={i.priority}
+                                                        onChange={e => handleQuickEdit(i._id, 'priority', e.target.value)}
+                                                        disabled={rowUpdating === i._id + 'priority'}
+                                                        inputProps={{ 'aria-label': 'Prioridad de la incidencia' }}
+                                                        sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                    >
+                                                        {prioridades.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                                                    </Select>
+                                                    {rowUpdating === i._id + 'priority' && <CircularProgress size={18} sx={{ ml: 1 }} />}
+                                                </FormControl>
+                                            ) : (
+                                                <Chip label={i.priority} color={priorityColors[i.priority]} sx={{ fontWeight: 'bold' }} />
+                                            )}
+                                        </TableCell>
+                                        <TableCell role="cell">{i.area || 'Sin área'}</TableCell>
+                                        <TableCell role="cell">
+                                            {Array.isArray(i.assignedTo) && i.assignedTo.length > 0 ? (
+                                                <Tooltip title={i.assignedTo.map(u => u.name).join(', ')} arrow>
+                                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                        {i.assignedTo.slice(0, 2).map(u => (
+                                                            <Chip key={u._id} label={u.name} size="small" color="primary" icon={<PersonIcon />} />
+                                                        ))}
+                                                        {i.assignedTo.length > 2 && (
+                                                            <Chip label={`+${i.assignedTo.length - 2}`} size="small" color="primary" />
+                                                        )}
+                                                    </Box>
+                                                </Tooltip>
+                                            ) : (
+                                                <Chip label="Sin asignar" size="small" color="default" variant="outlined" />
+                                            )}
+                                        </TableCell>
+                                        <TableCell role="cell">{new Date(i.createdAt).toLocaleDateString()}</TableCell>
+                                        <TableCell role="cell" align="right">
+                                            <Tooltip title="Ver detalles de la incidencia" arrow>
+                                                <IconButton
+                                                    onClick={() => handleViewIncident(i)}
+                                                    size="small"
+                                                    aria-label="Ver detalles de la incidencia"
+                                                    tabIndex={0}
+                                                    sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
+                                                >
+                                                    <VisibilityIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                            {canManageIncidents && (
+                                                <Tooltip title="Editar incidencia" arrow>
                                                     <IconButton
-                                                        onClick={() => handleViewIncident(i)}
+                                                        onClick={() => handleEditIncident(i)}
                                                         size="small"
-                                                        aria-label="Ver detalles de la incidencia"
+                                                        aria-label="Editar incidencia"
                                                         tabIndex={0}
                                                         sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
                                                     >
-                                                        <VisibilityIcon />
+                                                        <EditIcon />
                                                     </IconButton>
                                                 </Tooltip>
-                                                {canManageIncidents && (
-                                                    <Tooltip title="Editar incidencia" arrow>
-                                                        <IconButton
-                                                            onClick={() => handleEditIncident(i)}
-                                                            size="small"
-                                                            aria-label="Editar incidencia"
-                                                            tabIndex={0}
-                                                            sx={{ '&:focus': { outline: '2px solid #1976d2' } }}
-                                                        >
-                                                            <EditIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
                             )}
                         </TableBody>
                     </Table>
                 </TableContainer>
                 <TablePagination
                     component="div"
-                    count={filtrarIncidencias().length}
+                    count={total}
                     page={page}
                     onPageChange={handleChangePage}
                     rowsPerPage={rowsPerPage}

@@ -1,114 +1,143 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const { config } = require('../config/env');
-const { ROLES } = require('../config/roles');
-
-// Importar modelos
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 
-const createTestUsers = async () => {
+// Conectar a MongoDB
+mongoose.connect('mongodb://localhost:27017/incident-management', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
+
+async function createTestUsers() {
     try {
-        console.log('🚀 Creando usuarios de prueba...');
+        console.log('👥 Creando usuarios de prueba...\n');
 
-        // Conectar a la base de datos
-        await mongoose.connect(config.MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
+        // Verificar si ya existen usuarios
+        const existingUsers = await User.find();
+        if (existingUsers.length > 0) {
+            console.log(`ℹ️  Ya existen ${existingUsers.length} usuarios en el sistema`);
+            console.log('¿Deseas continuar y agregar usuarios adicionales? (s/n)');
+            return;
+        }
 
-        console.log('✅ Conectado a la base de datos');
-
-        // Usuarios de prueba
+        // Datos de usuarios de prueba
         const testUsers = [
             {
-                name: 'Administrador',
-                email: 'admin@example.com',
+                name: 'Administrador Principal',
+                email: 'admin@test.com',
                 password: 'admin123',
-                role: ROLES.ADMIN
+                role: 'admin',
+                isActive: true
             },
             {
-                name: 'Técnico de Soporte 1',
-                email: 'soporte1@example.com',
+                name: 'Técnico Senior',
+                email: 'tecnico1@test.com',
+                password: 'tecnico123',
+                role: 'technician',
+                isActive: true
+            },
+            {
+                name: 'Técnico Junior',
+                email: 'tecnico2@test.com',
+                password: 'tecnico123',
+                role: 'technician',
+                isActive: true
+            },
+            {
+                name: 'Usuario Regular',
+                email: 'user1@test.com',
+                password: 'user123',
+                role: 'user',
+                isActive: true
+            },
+            {
+                name: 'Usuario de Soporte',
+                email: 'soporte@test.com',
                 password: 'soporte123',
-                role: ROLES.SOPORTE
+                role: 'user',
+                isActive: true
             },
             {
-                name: 'Técnico de Soporte 2',
-                email: 'soporte2@example.com',
-                password: 'soporte123',
-                role: ROLES.SOPORTE
+                name: 'Analista de Sistemas',
+                email: 'analista@test.com',
+                password: 'analista123',
+                role: 'technician',
+                isActive: true
             },
             {
-                name: 'Usuario Final 1',
-                email: 'usuario1@example.com',
-                password: 'usuario123',
-                role: ROLES.USUARIO
+                name: 'Coordinador IT',
+                email: 'coordinador@test.com',
+                password: 'coord123',
+                role: 'admin',
+                isActive: true
             },
             {
-                name: 'Usuario Final 2',
-                email: 'usuario2@example.com',
-                password: 'usuario123',
-                role: ROLES.USUARIO
+                name: 'Usuario Inactivo',
+                email: 'inactivo@test.com',
+                password: 'inactivo123',
+                role: 'user',
+                isActive: false
             }
         ];
 
+        // Crear usuarios
+        const createdUsers = [];
         for (const userData of testUsers) {
             // Verificar si el usuario ya existe
             const existingUser = await User.findOne({ email: userData.email });
-
             if (existingUser) {
-                console.log(`👤 Usuario ${userData.email} ya existe`);
+                console.log(`ℹ️  Usuario ya existe: ${userData.email}`);
                 continue;
             }
 
             // Encriptar contraseña
-            const hashedPassword = await bcrypt.hash(userData.password, 12);
+            const saltRounds = 10;
+            const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
             // Crear usuario
             const user = new User({
                 name: userData.name,
                 email: userData.email,
                 password: hashedPassword,
-                role: userData.role
+                role: userData.role,
+                isActive: userData.isActive
             });
 
             await user.save();
-            console.log(`✅ Usuario creado: ${userData.email} (${userData.role})`);
+            createdUsers.push(user);
+            console.log(`✅ Usuario creado: ${userData.name} (${userData.email}) - Rol: ${userData.role}`);
         }
 
-        console.log('');
-        console.log('🎉 Usuarios de prueba creados exitosamente');
-        console.log('');
-        console.log('🔑 Credenciales de acceso:');
-        console.log('');
-        console.log('👑 ADMINISTRADOR:');
-        console.log('   Email: admin@example.com');
-        console.log('   Contraseña: admin123');
-        console.log('   Privilegios: Acceso completo al sistema');
-        console.log('');
-        console.log('🔧 TÉCNICOS DE SOPORTE:');
-        console.log('   Email: soporte1@example.com / soporte2@example.com');
-        console.log('   Contraseña: soporte123');
-        console.log('   Privilegios: Gestionar incidencias asignadas');
-        console.log('');
-        console.log('👤 USUARIOS FINALES:');
-        console.log('   Email: usuario1@example.com / usuario2@example.com');
-        console.log('   Contraseña: usuario123');
-        console.log('   Privilegios: Crear y ver sus propias incidencias');
-        console.log('');
-        console.log('🌐 Accede a: http://localhost:5173');
+        console.log(`\n✅ Usuarios de prueba creados exitosamente`);
+        console.log(`📊 Total usuarios creados: ${createdUsers.length}`);
+
+        // Mostrar estadísticas por rol
+        const usersByRole = {};
+        createdUsers.forEach(user => {
+            if (!usersByRole[user.role]) {
+                usersByRole[user.role] = 0;
+            }
+            usersByRole[user.role]++;
+        });
+
+        console.log('\n📊 Usuarios por rol:');
+        Object.keys(usersByRole).forEach(role => {
+            console.log(`  - ${role}: ${usersByRole[role]}`);
+        });
+
+        // Mostrar credenciales de acceso
+        console.log('\n🔑 Credenciales de acceso:');
+        console.log('  Administrador: admin@test.com / admin123');
+        console.log('  Técnico: tecnico1@test.com / tecnico123');
+        console.log('  Usuario: user1@test.com / user123');
+
+        console.log('\n✅ Script de creación de usuarios completado');
 
     } catch (error) {
-        console.error('❌ Error creando usuarios de prueba:', error.message);
+        console.error('❌ Error creando usuarios de prueba:', error);
     } finally {
-        await mongoose.disconnect();
-        console.log('🔌 Desconectado de la base de datos');
+        mongoose.connection.close();
     }
-};
-
-// Ejecutar si se llama directamente
-if (require.main === module) {
-    createTestUsers();
 }
 
-module.exports = createTestUsers; 
+createTestUsers(); 

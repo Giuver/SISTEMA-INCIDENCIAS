@@ -33,12 +33,14 @@ const AreaAdmin = () => {
     const fetchIncidents = async () => {
         try {
             const token = sessionManager.getAuthData()?.token;
-            const res = await axios.get('/api/incidents', {
+            const res = await axios.get('/api/incidents?limit=1000', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setIncidents(res.data);
+            // El backend ahora devuelve { incidents: [...], total: ... }
+            setIncidents(res.data.incidents || res.data || []);
         } catch (err) {
-            // No bloquear por error aquí
+            console.error('Error al cargar incidencias:', err);
+            setIncidents([]);
         }
     };
 
@@ -99,7 +101,7 @@ const AreaAdmin = () => {
     const handleDelete = async (id) => {
         // Bloquear eliminación si el área está en uso
         const area = areas.find(a => a._id === id);
-        const used = incidents.some(i => i.area === area.name);
+        const used = Array.isArray(incidents) && incidents.some(i => i.area === area.name);
         if (used) {
             setError('No se puede eliminar un área que está en uso por incidencias.');
             return;
@@ -148,7 +150,7 @@ const AreaAdmin = () => {
                                         </Tooltip>
                                         <Tooltip title="Eliminar">
                                             <span>
-                                                <IconButton onClick={() => handleDelete(area._id)} color="error" disabled={incidents.some(i => i.area === area.name)}>
+                                                <IconButton onClick={() => handleDelete(area._id)} color="error" disabled={Array.isArray(incidents) && incidents.some(i => i.area === area.name)}>
                                                     <Delete />
                                                 </IconButton>
                                             </span>

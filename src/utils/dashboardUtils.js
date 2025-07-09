@@ -35,15 +35,13 @@ export const filterByDateRange = (data, startDate, endDate) => {
 
 // Función para calcular tiempo promedio de resolución
 export const calculateAverageResolutionTime = (incidents) => {
-    const resolvedIncidents = incidents.filter(inc => inc.estado === 'resuelto' && inc.fechaResolucion);
+    const resolvedIncidents = incidents.filter(inc => (inc.status === 'resuelto' || inc.status === 'resuelta') && inc.resolvedAt);
     if (resolvedIncidents.length === 0) return 0;
-
     const totalTime = resolvedIncidents.reduce((acc, inc) => {
         const start = new Date(inc.createdAt);
-        const end = new Date(inc.fechaResolucion);
+        const end = new Date(inc.resolvedAt);
         return acc + (end - start);
     }, 0);
-
     return Math.round(totalTime / resolvedIncidents.length / (1000 * 60 * 60)); // Horas
 };
 
@@ -65,12 +63,11 @@ export const getDailyTrends = (incidents, days = 7) => {
 // Función para calcular KPIs
 export const calculateKPIs = (incidents) => {
     const total = incidents.length;
-    const resueltas = incidents.filter(i => i.estado === 'resuelto').length;
-    const pendientes = incidents.filter(i => i.estado === 'pendiente').length;
-    const enProceso = incidents.filter(i => i.estado === 'en_proceso').length;
-    const altaPrioridad = incidents.filter(i => i.prioridad === 'alta').length;
-    const asignadas = incidents.filter(i => i.asignado).length;
-
+    const resueltas = incidents.filter(i => i.status === 'resuelto' || i.status === 'resuelta').length;
+    const pendientes = incidents.filter(i => i.status === 'pendiente').length;
+    const enProceso = incidents.filter(i => i.status === 'en_proceso').length;
+    const altaPrioridad = incidents.filter(i => (i.priority && i.priority.toLowerCase() === 'alta')).length;
+    const asignadas = incidents.filter(i => Array.isArray(i.assignedTo) && i.assignedTo.length > 0).length;
     return {
         total,
         resueltas,

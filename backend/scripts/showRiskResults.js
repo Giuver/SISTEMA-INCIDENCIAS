@@ -1,94 +1,157 @@
-#!/usr/bin/env node
+const mongoose = require('mongoose');
+const Incident = require('../models/Incident');
+const User = require('../models/User');
+const Audit = require('../models/Audit');
 
-/**
- * Script para mostrar resultados del sistema de riesgos
- */
+// Conectar a MongoDB
+mongoose.connect('mongodb://localhost:27017/incident-management', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
 
-const RiskAssessment = require('../utils/riskAssessment');
+async function showRiskResults() {
+    try {
+        console.log('🔍 Analizando riesgos del sistema...\n');
 
-function showRiskResults() {
-    console.log('🔍 SISTEMA DE EVALUACIÓN DE RIESGOS');
-    console.log('='.repeat(50));
+        // Análisis de incidencias por prioridad
+        const priorityStats = await Incident.aggregate([
+            {
+                $group: {
+                    _id: '$priority',
+                    count: { $sum: 1 },
+                    avgResolutionTime: { $avg: { $subtract: ['$updatedAt', '$createdAt'] } }
+                }
+            }
+        ]);
 
-    const riskAssessment = new RiskAssessment();
+        console.log('📊 Análisis por prioridad:');
+        priorityStats.forEach(stat => {
+            const avgDays = stat.avgResolutionTime ? Math.round(stat.avgResolutionTime / (1000 * 60 * 60 * 24)) : 0;
+            console.log(`  - ${stat._id}: ${stat.count} incidencias (promedio ${avgDays} días)`);
+        });
 
-    // Generar reporte de riesgos
-    const report = riskAssessment.generateRiskReport();
+        // Análisis de incidencias por estado
+        const statusStats = await Incident.aggregate([
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
 
-    console.log('\n📊 RESUMEN DE RIESGOS:');
-    console.log(`   Total de funcionalidades: ${report.summary.totalFunctionalities}`);
-    console.log(`   Funciones críticas: ${report.summary.criticalFunctions}`);
-    console.log(`   Funciones de alto riesgo: ${report.summary.highRiskFunctions}`);
-    console.log(`   Puntuación total de riesgo: ${report.summary.totalRiskScore}`);
+        console.log('\n📊 Análisis por estado:');
+        statusStats.forEach(stat => {
+            console.log(`  - ${stat._id}: ${stat.count} incidencias`);
+        });
 
-    console.log('\n🎯 FUNCIONALIDADES POR PRIORIDAD:');
+        // Análisis de usuarios más activos
+        const userActivity = await Incident.aggregate([
+            {
+                $group: {
+                    _id: '$createdBy',
+                    incidentsCreated: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { incidentsCreated: -1 }
+            },
+            {
+                $limit: 5
+            }
+        ]);
 
-    // Funcionalidades críticas
-    console.log('\n🔴 CRÍTICAS (IMMEDIATE):');
-    report.testPlan.immediate.forEach(func => {
-        console.log(`   • ${func.functionality.toUpperCase()}: ${func.riskScore}/9 - ${func.description}`);
-        console.log(`     Casos de prueba: ${func.testCases.join(', ')}`);
-    });
+        console.log('\n👥 Usuarios más activos (por incidencias creadas):');
+        for (const userStat of userActivity) {
+            const user = await User.findById(userStat._id);
+            if (user) {
+                console.log(`  - ${user.name}: ${userStat.incidentsCreated} incidencias`);
+            }
+        }
 
-    // Funcionalidades de alto riesgo
-    console.log('\n🟠 ALTO RIESGO (HIGH):');
-    report.testPlan.high.forEach(func => {
-        console.log(`   • ${func.functionality.toUpperCase()}: ${func.riskScore}/9 - ${func.description}`);
-        console.log(`     Casos de prueba: ${func.testCases.join(', ')}`);
-    });
+        // Análisis de incidencias sin resolver
+        const unresolvedIncidents = await Incident.find({
+            status: { $in: ['pendiente', 'en_proceso'] }
+        });
 
-    // Funcionalidades de riesgo medio
-    console.log('\n🟡 RIESGO MEDIO (MEDIUM):');
-    report.testPlan.medium.forEach(func => {
-        console.log(`   • ${func.functionality.toUpperCase()}: ${func.riskScore}/9 - ${func.description}`);
-        console.log(`     Casos de prueba: ${func.testCases.join(', ')}`);
-    });
+        console.log(`\n⚠️  Incidencias sin resolver: ${unresolvedIncidents.length}`);
 
-    // Funcionalidades de bajo riesgo
-    console.log('\n🟢 BAJO RIESGO (LOW):');
-    report.testPlan.low.forEach(func => {
-        console.log(`   • ${func.functionality.toUpperCase()}: ${func.riskScore}/9 - ${func.description}`);
-        console.log(`     Casos de prueba: ${func.testCases.join(', ')}`);
-    });
+        // Análisis de incidencias críticas
+        const criticalIncidents = await Incident.find({
+            priority: 'crítica',
+            status: { $ne: 'cerrado' }
+        });
 
-    console.log('\n💡 RECOMENDACIONES:');
-    console.log(`   ${report.recommendations.immediate}`);
-    console.log(`   ${report.recommendations.high}`);
-    console.log(`   ${report.recommendations.medium}`);
-    console.log(`   ${report.recommendations.low}`);
+        console.log(`🚨 Incidencias críticas sin resolver: ${criticalIncidents.length}`);
 
-    // Mostrar matriz de riesgos
-    console.log('\n📋 MATRIZ DE RIESGOS:');
-    const prioritized = riskAssessment.getPrioritizedFunctionalities();
-    prioritized.forEach((func, index) => {
-        const icon = func.testPriority === 'IMMEDIATE' ? '🔴' :
-            func.testPriority === 'HIGH' ? '🟠' :
-                func.testPriority === 'MEDIUM' ? '🟡' : '🟢';
+        // Análisis de auditoría
+        const auditStats = await Audit.aggregate([
+            {
+                $group: {
+                    _id: '$action',
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { count: -1 }
+            }
+        ]);
 
-        console.log(`${index + 1}. ${icon} ${func.functionality.toUpperCase()}`);
-        console.log(`   Riesgo: ${func.riskScore}/9 | Prioridad: ${func.testPriority}`);
-        console.log(`   Descripción: ${func.description}`);
-        console.log(`   Casos de prueba: ${func.testCases.length}`);
-        console.log('');
-    });
+        console.log('\n📝 Actividad de auditoría:');
+        auditStats.forEach(stat => {
+            console.log(`  - ${stat._id}: ${stat.count} acciones`);
+        });
 
-    // Simular resultados de pruebas
-    console.log('\n🧪 RESULTADOS SIMULADOS DE PRUEBAS:');
-    console.log('🔴 Pruebas Críticas: 4/4 pasaron (100%)');
-    console.log('🟠 Pruebas Alto Riesgo: 6/7 pasaron (85.7%)');
-    console.log('🟡 Pruebas Riesgo Medio: 4/4 pasaron (100%)');
-    console.log('🟢 Pruebas Bajo Riesgo: 2/2 pasaron (100%)');
-    console.log('📊 Total: 16/17 pasaron (94.1%)');
+        // Análisis de tiempo de respuesta
+        const resolvedIncidents = await Incident.find({
+            status: 'resuelto',
+            updatedAt: { $exists: true },
+            createdAt: { $exists: true }
+        });
 
-    console.log('\n✅ SISTEMA DE RIESGOS FUNCIONANDO CORRECTAMENTE');
-    console.log('🎯 Priorización de pruebas implementada');
-    console.log('📈 Métricas de calidad disponibles');
-    console.log('🔄 Sistema listo para uso en producción');
+        if (resolvedIncidents.length > 0) {
+            const avgResolutionTime = resolvedIncidents.reduce((total, incident) => {
+                return total + (incident.updatedAt - incident.createdAt);
+            }, 0) / resolvedIncidents.length;
+
+            const avgDays = Math.round(avgResolutionTime / (1000 * 60 * 60 * 24));
+            console.log(`\n⏱️  Tiempo promedio de resolución: ${avgDays} días`);
+        }
+
+        // Análisis de riesgo general
+        console.log('\n🔍 Análisis de riesgo general:');
+
+        const totalIncidents = await Incident.countDocuments();
+        const criticalUnresolved = await Incident.countDocuments({
+            priority: 'crítica',
+            status: { $ne: 'cerrado' }
+        });
+        const highUnresolved = await Incident.countDocuments({
+            priority: 'alta',
+            status: { $ne: 'cerrado' }
+        });
+
+        const riskScore = (criticalUnresolved * 3 + highUnresolved * 2) / totalIncidents * 100;
+
+        console.log(`  - Riesgo crítico: ${criticalUnresolved} incidencias`);
+        console.log(`  - Riesgo alto: ${highUnresolved} incidencias`);
+        console.log(`  - Puntuación de riesgo: ${riskScore.toFixed(2)}%`);
+
+        if (riskScore > 50) {
+            console.log('  🚨 ALERTA: Riesgo alto detectado');
+        } else if (riskScore > 25) {
+            console.log('  ⚠️  ADVERTENCIA: Riesgo moderado detectado');
+        } else {
+            console.log('  ✅ Riesgo bajo - Sistema estable');
+        }
+
+        console.log('\n✅ Análisis de riesgo completado');
+
+    } catch (error) {
+        console.error('❌ Error durante el análisis:', error);
+    } finally {
+        mongoose.connection.close();
+    }
 }
 
-// Ejecutar el script
-if (require.main === module) {
-    showRiskResults();
-}
-
-module.exports = { showRiskResults }; 
+showRiskResults(); 

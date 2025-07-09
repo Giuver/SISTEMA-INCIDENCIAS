@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Container, Grid, Typography, Box, useTheme, Skeleton } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { apiService } from '../utils/apiService';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
     PieChart, Pie, Cell, ResponsiveContainer
@@ -41,41 +41,36 @@ const Dashboard = () => {
     const navigate = useNavigate();
 
     // Función optimizada para obtener datos
-    const fetchIncidencias = useCallback(async () => {
+    const fetchIncidencias = useCallback(async (range = selectedRange) => {
         try {
-            // Verificar caché primero
-            if (isCacheValid()) {
-                setIncidencias(getCachedData());
-                setLoading(false);
-                return;
-            }
-
-            const authData = sessionManager.getAuthData();
-            const token = authData?.token;
-
-            const res = await axios.get('/api/incidents', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            // Actualizar caché
-            updateCache(res.data);
-            setIncidencias(res.data);
+            setLoading(true);
+            // Calcular fechas desde el filtro
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(endDate.getDate() - range.days);
+            // Formatear fechas a ISO
+            const from = startDate.toISOString();
+            const to = endDate.toISOString();
+            // Petición con filtros y límite alto
+            const res = await apiService.get(`/incidents?from=${from}&to=${to}&limit=1000`);
+            updateCache(res.incidents || res.data || []);
+            setIncidencias(res.incidents || res.data || []);
         } catch (err) {
             console.error('Error fetching incidents:', err);
             setIncidencias([]);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [selectedRange]);
 
-    // Cargar datos al montar el componente
+    // Cargar datos al montar el componente y cuando cambie el filtro de fechas
     useEffect(() => {
-        fetchIncidencias();
-    }, [fetchIncidencias]);
+        fetchIncidencias(selectedRange);
+    }, [fetchIncidencias, selectedRange]);
 
     // Memoizar cálculos para evitar recálculos innecesarios
     const filteredIncidencias = useMemo(() => {
-        if (!incidencias.length) return [];
+        if (!incidencias || !incidencias.length) return [];
 
         const endDate = new Date();
         const startDate = new Date();
@@ -158,7 +153,8 @@ const Dashboard = () => {
     // Manejadores de eventos
     const handleRangeChange = useCallback((range) => {
         setSelectedRange(range);
-    }, []);
+        fetchIncidencias(range);
+    }, [fetchIncidencias]);
 
     const handleRefresh = useCallback(() => {
         setLoading(true);

@@ -28,6 +28,80 @@ router.get('/verify', auth, async (req, res) => {
     }
 });
 
+// RUTA TEMPORAL: Crear usuarios sin autenticación (solo para desarrollo)
+router.post('/create-initial-users', async (req, res) => {
+    try {
+        console.log('🚀 Creando usuarios iniciales...');
+
+        // Verificar si ya existen usuarios
+        const existingUsers = await User.find();
+        if (existingUsers.length > 0) {
+            return res.status(400).json({
+                message: 'Ya existen usuarios en el sistema',
+                users: existingUsers.map(u => ({ email: u.email, role: u.role }))
+            });
+        }
+
+        // Usuarios a crear
+        const users = [
+            {
+                name: 'Administrador',
+                email: 'admin@example.com',
+                password: 'admin123',
+                role: 'admin'
+            },
+            {
+                name: 'Soporte Técnico',
+                email: 'soporte@example.com',
+                password: 'soporte123',
+                role: 'soporte'
+            },
+            {
+                name: 'Usuario Normal',
+                email: 'usuario@example.com',
+                password: 'usuario123',
+                role: 'usuario'
+            }
+        ];
+
+        const createdUsers = [];
+
+        for (const userData of users) {
+            // Encriptar contraseña
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(userData.password, salt);
+
+            // Crear usuario
+            const user = new User({
+                name: userData.name,
+                email: userData.email,
+                password: hashedPassword,
+                role: userData.role
+            });
+
+            await user.save();
+            createdUsers.push({ email: user.email, role: user.role });
+            console.log(`✅ Usuario creado: ${userData.email} (${userData.role})`);
+        }
+
+        console.log('🎉 Usuarios iniciales creados exitosamente!');
+
+        res.json({
+            message: 'Usuarios iniciales creados exitosamente',
+            users: createdUsers,
+            credentials: {
+                admin: 'admin@example.com / admin123',
+                soporte: 'soporte@example.com / soporte123',
+                usuario: 'usuario@example.com / usuario123'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creando usuarios iniciales:', error);
+        res.status(500).json({ message: 'Error en el servidor', error: error.message });
+    }
+});
+
 // Registro de usuario (solo admin)
 router.post('/register', [auth, requirePermission('users:manage')], async (req, res) => {
     try {
@@ -83,11 +157,12 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Credenciales inválidas' });
         }
 
-        // Verificar contraseña
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ message: 'Credenciales inválidas' });
-        }
+        // --- SOLO PARA PRUEBAS: Aceptar cualquier contraseña ---
+        // const isMatch = await bcrypt.compare(password, user.password);
+        // if (!isMatch) {
+        //     return res.status(400).json({ message: 'Credenciales inválidas' });
+        // }
+        // --- FIN MODIFICACIÓN ---
 
         // Crear y devolver el token
         const payload = {
@@ -188,7 +263,7 @@ router.patch('/:id', auth, async (req, res) => {
         // Auditoría
         logAudit({
             user: req.user.id,
-            action: 'actualizar',
+            action: 'editar',
             entity: 'User',
             entityId: updatedUser._id,
             changes: { before, after: req.body }

@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
+require('dotenv').config();
 
 const createAdmin = async () => {
     try {
-        // Conectar a MongoDB
-        await mongoose.connect('mongodb://localhost:27017/incident-management', {
+        // Conectar a MongoDB Atlas usando la variable de entorno
+        await mongoose.connect(process.env.MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true
         });

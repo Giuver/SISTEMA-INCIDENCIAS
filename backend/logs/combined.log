@@ -23,3 +23,29 @@
 {"level":"info","message":"🚀 Servidor iniciado en puerto 50001","timestamp":"2025-07-04T20:07:04.329Z"}
 {"level":"info","message":"✅ MongoDB conectado exitosamente","timestamp":"2025-07-04T20:07:04.342Z"}
 {"level":"info","message":"✅ MongoDB conectado exitosamente","timestamp":"2025-07-04T20:07:04.356Z"}
+{"level":"info","message":"Servidor corriendo en el puerto 5000","service":"incident-management","timestamp":"2025-07-08 18:26:50"}
+{"level":"info","message":"Ambiente: development","service":"incident-management","timestamp":"2025-07-08 18:26:50"}
+{"level":"info","message":"CORS configurado para permitir todos los orígenes","service":"incident-management","timestamp":"2025-07-08 18:26:50"}
+{"level":"info","message":"Socket.IO configurado","service":"incident-management","timestamp":"2025-07-08 18:26:50"}
+{"level":"info","message":"MongoDB conectado exitosamente","service":"incident-management","timestamp":"2025-07-08 18:26:51"}
+{"level":"info","message":"Usuario conectado: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 18:26:55"}
+{"level":"info","message":"Usuario autenticado en Socket.IO: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 18:26:55"}
+{"level":"info","message":"Servidor corriendo en el puerto 5000","service":"incident-management","timestamp":"2025-07-08 18:26:57"}
+{"level":"info","message":"Ambiente: development","service":"incident-management","timestamp":"2025-07-08 18:26:57"}
+{"level":"info","message":"CORS configurado para permitir todos los orígenes","service":"incident-management","timestamp":"2025-07-08 18:26:57"}
+{"level":"info","message":"Socket.IO configurado","service":"incident-management","timestamp":"2025-07-08 18:26:57"}
+{"level":"info","message":"Usuario conectado: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 18:26:58"}
+{"level":"info","message":"Usuario autenticado en Socket.IO: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 18:26:58"}
+{"level":"info","message":"MongoDB conectado exitosamente","service":"incident-management","timestamp":"2025-07-08 18:26:58"}
+{"level":"info","message":"Usuario desconectado: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 18:29:11"}
+{"level":"info","message":"Usuario conectado: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 18:29:12"}
+{"level":"info","message":"Usuario autenticado en Socket.IO: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 18:29:12"}
+{"level":"info","message":"Usuario desconectado: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 19:37:08"}
+{"level":"info","message":"Usuario conectado: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 19:37:09"}
+{"level":"info","message":"Usuario autenticado en Socket.IO: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 19:37:09"}
+{"level":"info","message":"Servidor corriendo en el puerto 5000","service":"incident-management","timestamp":"2025-07-08 19:53:07"}
+{"level":"info","message":"Ambiente: development","service":"incident-management","timestamp":"2025-07-08 19:53:07"}
+{"level":"info","message":"CORS configurado para permitir todos los orígenes","service":"incident-management","timestamp":"2025-07-08 19:53:07"}
+{"level":"info","message":"Socket.IO configurado","service":"incident-management","timestamp":"2025-07-08 19:53:07"}
+{"level":"info","message":"Usuario conectado: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 19:53:07"}
+{"level":"info","message":"Usuario autenticado en Socket.IO: 68520d90e157bb70fea0919b","service":"incident-management","timestamp":"2025-07-08 19:53:07"}
