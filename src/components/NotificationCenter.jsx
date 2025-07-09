@@ -178,7 +178,9 @@ const NotificationCenter = () => {
         if (!socketRef.current) {
             const authData = sessionManager.getAuthData();
             const token = authData?.token;
-            socketRef.current = io('http://localhost:5000', {
+            // Usar variable de entorno para la URL del backend
+            const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            socketRef.current = io(backendUrl, {
                 auth: {
                     token: token
                 }
