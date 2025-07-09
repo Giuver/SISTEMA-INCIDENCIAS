@@ -1,4 +1,3 @@
-console.log('USANDO SERVER.JS CORRECTO - FECHA:', new Date().toISOString());
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
