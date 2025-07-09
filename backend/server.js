@@ -25,20 +25,34 @@ const io = new Server(httpServer, {
     }
 });
 
-// Configuración de CORS más específica
+// Configuración de CORS que acepta cualquier subdominio de Vercel
 const allowedOrigins = [
-    'https://sistema-incidencias-tres.vercel.app',
-    'http://localhost:5173'
+    'http://localhost:5173',
+    'http://localhost:5174'
 ];
+
 const corsOptions = {
     origin: function (origin, callback) {
         // Permitir peticiones sin origen (como Postman)
         if (!origin) return callback(null, true);
+
+        // Permitir localhost para desarrollo
         if (allowedOrigins.includes(origin)) {
             return callback(null, true);
-        } else {
-            return callback(new Error('No permitido por CORS'));
         }
+
+        // Permitir cualquier subdominio de vercel.app
+        if (origin && origin.includes('.vercel.app')) {
+            return callback(null, true);
+        }
+
+        // Permitir dominios personalizados de Vercel (si los tienes)
+        if (origin && (origin.includes('vercel.app') || origin.includes('vercel.com'))) {
+            return callback(null, true);
+        }
+
+        console.log('Origen bloqueado por CORS:', origin);
+        return callback(new Error('No permitido por CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
@@ -49,7 +63,21 @@ app.use(cors(corsOptions));
 
 // Headers manuales para máxima compatibilidad
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', allowedOrigins.includes(req.headers.origin) ? req.headers.origin : '');
+    const origin = req.headers.origin;
+
+    // Aplicar la misma lógica de CORS que en corsOptions
+    let allowOrigin = '';
+    if (!origin) {
+        allowOrigin = '*';
+    } else if (allowedOrigins.includes(origin)) {
+        allowOrigin = origin;
+    } else if (origin && origin.includes('.vercel.app')) {
+        allowOrigin = origin;
+    } else if (origin && (origin.includes('vercel.app') || origin.includes('vercel.com'))) {
+        allowOrigin = origin;
+    }
+
+    res.header('Access-Control-Allow-Origin', allowOrigin);
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
