@@ -141,7 +141,7 @@ app.use((req, res) => {
     });
 });
 
-// Servir archivos estáticos en producción
+// Servir archivos estáticos en producción (ESTO DEBE IR AL FINAL)
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../dist')));
 
