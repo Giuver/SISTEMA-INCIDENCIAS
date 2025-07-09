@@ -26,18 +26,35 @@ const io = new Server(httpServer, {
 });
 
 // Configuración de CORS más específica
+const allowedOrigins = [
+    'https://sistema-incidencias-tres.vercel.app',
+    'http://localhost:5173'
+];
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production'
-        ? process.env.FRONTEND_URL || 'http://localhost:5174'
-        : ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+    origin: function (origin, callback) {
+        // Permitir peticiones sin origen (como Postman)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        } else {
+            return callback(new Error('No permitido por CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Content-Length', 'X-Requested-With'],
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
     credentials: true,
     maxAge: 86400
 };
-
 app.use(cors(corsOptions));
+
+// Headers manuales para máxima compatibilidad
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', allowedOrigins.includes(req.headers.origin) ? req.headers.origin : '');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
+    next();
+});
 
 // Middleware
 app.use(express.json());
