@@ -6,6 +6,7 @@ import { Edit, Delete, Add } from '@mui/icons-material';
 import axios from 'axios';
 import { useNotification } from '../utils/notification';
 import sessionManager from '../utils/sessionManager';
+import { API_ENDPOINTS } from '../config/api';
 
 const roles = [
     { value: 'usuario', label: 'Usuario' },
@@ -31,7 +32,7 @@ const UserManagement = () => {
     const fetchUsers = async () => {
         try {
             const token = sessionManager.getAuthData()?.token;
-            const res = await axios.get('/api/users', {
+            const res = await axios.get(API_ENDPOINTS.USERS, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setUsers(res.data);
@@ -81,14 +82,14 @@ const UserManagement = () => {
                 // Editar usuario
                 const updateData = { ...form };
                 if (!form.password) delete updateData.password;
-                await axios.patch(`/api/users/${editingUser._id}`, updateData, {
+                await axios.patch(`${API_ENDPOINTS.USERS}/${editingUser._id}`, updateData, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setSuccess('Usuario actualizado');
                 notify('Usuario actualizado', 'success');
             } else {
                 // Crear usuario
-                await axios.post('/api/users/register', form, {
+                await axios.post(`${API_ENDPOINTS.USERS}/register`, form, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setSuccess('Usuario creado');
@@ -115,7 +116,7 @@ const UserManagement = () => {
         setDeleteDialog({ open: false, user: null });
         const token = sessionManager.getAuthData()?.token;
         try {
-            await axios.delete(`/api/users/${id}`, {
+            await axios.delete(`${API_ENDPOINTS.USERS}/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setSuccess('Usuario eliminado');
