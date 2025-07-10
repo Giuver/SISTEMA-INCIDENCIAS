@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import { auditAPI, userAPI } from '../utils/apiService';
 import sessionManager from '../utils/sessionManager';
-import axios from 'axios'; // Added axios import
+import { apiService } from '../utils/apiService';
 
 const actions = [
     'crear',
@@ -82,12 +82,12 @@ const AuditLog = () => {
                 page: page + 1,
                 limit: rowsPerPage
             };
-            const res = await axios.get('/api/audit', {
+            const res = await apiService.get('/audit', {
                 headers: { Authorization: `Bearer ${token}` },
                 params
             });
-            setLogs(res.data.logs || []);
-            setTotal(res.data.total || 0);
+            setLogs(res.logs || []);
+            setTotal(res.total || 0);
         } catch (err) {
             console.error('❌ Error al cargar auditoría:', err);
             setLogs([]);

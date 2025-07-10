@@ -1,35 +1,56 @@
 @echo off
 echo ========================================
-echo    VERIFICANDO ESTADO DEL SISTEMA
+echo    VERIFICACION DEL SISTEMA
 echo ========================================
 echo.
 
-echo Deteniendo procesos existentes...
-taskkill /f /im node.exe >nul 2>&1
-taskkill /f /im npm.exe >nul 2>&1
+echo [1/4] Verificando variables de entorno...
+if exist "frontend.env" (
+    echo ✅ frontend.env encontrado
+    echo Contenido de VITE_API_URL:
+    findstr "VITE_API_URL" frontend.env
+) else (
+    echo ❌ frontend.env no encontrado
+)
 
 echo.
-echo Iniciando Backend...
-start "Backend - Puerto 5000" cmd /k "cd backend && npm run dev"
+echo [2/4] Verificando archivos de configuración...
+if exist "backend/server.js" (
+    echo ✅ server.js encontrado
+) else (
+    echo ❌ server.js no encontrado
+)
 
-echo Esperando 8 segundos...
-timeout /t 8 /nobreak > nul
+if exist "src/utils/apiService.js" (
+    echo ✅ apiService.js encontrado
+) else (
+    echo ❌ apiService.js no encontrado
+)
 
 echo.
-echo Iniciando Frontend...
-start "Frontend - Puerto 5173" cmd /k "npm run dev"
+echo [3/4] Verificando dependencias...
+if exist "package.json" (
+    echo ✅ package.json encontrado
+) else (
+    echo ❌ package.json no encontrado
+)
 
+if exist "backend/package.json" (
+    echo ✅ backend/package.json encontrado
+) else (
+    echo ❌ backend/package.json no encontrado
+)
+
+echo.
+echo [4/4] Información del sistema...
+echo Puerto del backend: 5000
+echo Puerto del frontend: 5173
+echo URL de la API: https://sistema-incidencias-production.up.railway.app
 echo.
 echo ========================================
-echo    SISTEMA REINICIADO
+echo    VERIFICACION COMPLETADA
 echo ========================================
 echo.
-echo Backend:  http://localhost:5000
-echo Frontend: http://localhost:5173
-echo.
-echo Credenciales de prueba:
-echo - Admin: admin@example.com / admin123
-echo - Soporte: soporte@example.com / soporte123
-echo - Usuario: usuario@example.com / usuario123
+echo Para iniciar el sistema, ejecuta: start-system.bat
 echo.
 pause 

@@ -7,6 +7,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../config/api';
 import sessionManager from '../utils/sessionManager';
+import { apiService } from '../utils/apiService';
 
 const Login = () => {
     const [form, setForm] = useState({ email: '', password: '' });
@@ -27,39 +28,18 @@ const Login = () => {
         event.preventDefault();
     };
 
-    const handleSubmit = async (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
+        setError('');
         try {
-            const res = await axios.post(API_ENDPOINTS.LOGIN, form, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (res.data.token) {
-                console.log('✅ Token recibido:', res.data.token.substring(0, 50) + '...');
-                console.log('✅ Role recibido:', res.data.role);
-                console.log('✅ UserId recibido:', res.data.userId);
-
-                // Usar el gestor de sesiones para guardar datos de forma independiente
-                sessionManager.setAuthData({
-                    token: res.data.token,
-                    role: res.data.role,
-                    userId: res.data.userId,
-                    userName: res.data.userName || res.data.name
-                });
-
-                console.log('💾 Datos guardados en sesión independiente');
-                console.log('🆔 ID de sesión:', sessionManager.sessionId);
-                navigate('/');
-            } else {
-                setError('Error en la respuesta del servidor');
-            }
+            const res = await apiService.post('/users/login', form);
+            localStorage.setItem('token', res.token);
+            localStorage.setItem('role', res.role);
+            localStorage.setItem('userId', res.userId);
+            navigate('/');
         } catch (err) {
-            console.error('Error de login:', err);
-            setError(err.response?.data?.message || 'Error al iniciar sesión');
+            setError('Error al iniciar sesión');
         } finally {
             setLoading(false);
         }
@@ -81,7 +61,7 @@ const Login = () => {
                 </Box>
                 <Divider sx={{ mb: 3 }} />
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleLogin}>
                     <TextField
                         label="Email"
                         name="email"

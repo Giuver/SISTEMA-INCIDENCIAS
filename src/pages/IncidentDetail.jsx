@@ -33,6 +33,7 @@ import axios from 'axios';
 import { useNotification } from '../utils/notification';
 import SendIcon from '@mui/icons-material/Send';
 import sessionManager from '../utils/sessionManager';
+import { apiService } from '../utils/apiService';
 
 const statusColors = {
     pendiente: 'warning',
@@ -82,45 +83,44 @@ const IncidentDetail = () => {
     useEffect(() => {
         const fetchIncident = async () => {
             try {
-                const res = await axios.get(`/api/incidents/${id}`);
-                setIncident(res.data);
+                const res = await apiService.get(`/incidents/${id}`);
+                setIncident(res);
                 setIsLoading(false);
             } catch (err) {
-                setError('No se pudo cargar la incidencia');
-                notify('No se pudo cargar la incidencia', 'error');
+                setError('Error al cargar la incidencia');
+                notify('Error al cargar la incidencia', 'error');
                 setIsLoading(false);
             }
         };
         const fetchComments = async () => {
             setLoadingComments(true);
             try {
-                const res = await axios.get(`/api/incidents/${id}/comentarios`, {
+                const res = await apiService.get(`/incidents/${id}/comentarios`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                setComments(res.data);
+                setComments(res);
             } catch (err) {
                 setComments([]);
             } finally {
                 setLoadingComments(false);
             }
         };
+        const fetchUsers = async () => {
+            try {
+                const res = await apiService.get('/users');
+                setUsers(res);
+            } catch (err) {
+                setUsers([]);
+            }
+        };
         fetchIncident();
         fetchComments();
-    }, [id, success]);
-
-    useEffect(() => {
-        // Solo cargar usuarios si es admin o soporte
-        const userRole = localStorage.getItem('role');
-        if (userRole === 'admin' || userRole === 'soporte') {
-            axios.get('/api/users').then(res => setUsers(res.data));
-        } else {
-            setUsers([]);
-        }
-    }, []);
+        fetchUsers();
+    }, [id]);
 
     const handleStatusChange = async () => {
         try {
-            await axios.patch(`/api/incidents/${id}/estado`, {
+            await apiService.patch(`/incidents/${id}/estado`, {
                 status: newStatus,
                 comment
             }, {
@@ -138,7 +138,7 @@ const IncidentDetail = () => {
 
     const handleAssign = async () => {
         try {
-            await axios.patch(`/api/incidents/${id}/asignar`, {
+            await apiService.patch(`/incidents/${id}/asignar`, {
                 assignedTo: assignTo
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -155,7 +155,7 @@ const IncidentDetail = () => {
     const handleSolutionSubmit = async (e) => {
         e.preventDefault();
         try {
-            await axios.patch(`/api/incidents/${id}/estado`, {
+            await apiService.patch(`/incidents/${id}/estado`, {
                 status: 'resuelto',
                 solution,
                 comment: 'Solución registrada'
@@ -174,15 +174,15 @@ const IncidentDetail = () => {
         setSendingComment(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.post(`/api/incidents/${id}/comentarios`, { text: commentText }, {
+            await apiService.post(`/incidents/${id}/comentarios`, { text: commentText }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCommentText('');
             // Recargar comentarios
-            const res = await axios.get(`/api/incidents/${id}/comentarios`, {
+            const res = await apiService.get(`/incidents/${id}/comentarios`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setComments(res.data);
+            setComments(res);
         } catch (err) {
             // Puedes mostrar notificación de error si lo deseas
         } finally {

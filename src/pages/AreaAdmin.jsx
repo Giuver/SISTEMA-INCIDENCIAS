@@ -5,6 +5,7 @@ import {
 import { Add, Edit, Delete } from '@mui/icons-material';
 import axios from 'axios';
 import sessionManager from '../utils/sessionManager';
+import { apiService } from '../utils/apiService';
 
 const emptyArea = { name: '', description: '', color: '#4CAF50' };
 
@@ -21,10 +22,10 @@ const AreaAdmin = () => {
     const fetchAreas = async () => {
         try {
             const token = sessionManager.getAuthData()?.token;
-            const res = await axios.get('/api/areas', {
+            const res = await apiService.get('/areas', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setAreas(res.data);
+            setAreas(res);
         } catch (err) {
             setError('Error al cargar áreas');
         }
@@ -33,11 +34,11 @@ const AreaAdmin = () => {
     const fetchIncidents = async () => {
         try {
             const token = sessionManager.getAuthData()?.token;
-            const res = await axios.get('/api/incidents?limit=1000', {
+            const res = await apiService.get('/incidents?limit=1000', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             // El backend ahora devuelve { incidents: [...], total: ... }
-            setIncidents(res.data.incidents || res.data || []);
+            setIncidents(res.incidents || res || []);
         } catch (err) {
             console.error('Error al cargar incidencias:', err);
             setIncidents([]);
@@ -85,10 +86,10 @@ const AreaAdmin = () => {
         try {
             const token = sessionManager.getAuthData()?.token;
             if (editMode) {
-                await axios.put(`/api/areas/${selectedId}`, form, { headers: { Authorization: `Bearer ${token}` } });
+                await apiService.put(`/areas/${selectedId}`, form, { headers: { Authorization: `Bearer ${token}` } });
                 setSuccess('Área actualizada');
             } else {
-                await axios.post('/api/areas', form, { headers: { Authorization: `Bearer ${token}` } });
+                await apiService.post('/areas', form, { headers: { Authorization: `Bearer ${token}` } });
                 setSuccess('Área creada');
             }
             fetchAreas();
@@ -109,7 +110,7 @@ const AreaAdmin = () => {
         if (!window.confirm('¿Seguro que deseas eliminar esta área?')) return;
         try {
             const token = sessionManager.getAuthData()?.token;
-            await axios.delete(`/api/areas/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+            await apiService.delete(`/areas/${id}`, { headers: { Authorization: `Bearer ${token}` } });
             setSuccess('Área eliminada');
             fetchAreas();
         } catch (err) {
