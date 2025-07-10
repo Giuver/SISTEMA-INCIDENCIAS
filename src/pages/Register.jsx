@@ -3,6 +3,7 @@ import { Container, Paper, Typography, TextField, Button, Alert, Box, MenuItem }
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../config/api';
+import { apiService } from '../utils/apiService';
 
 const Register = () => {
     const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'usuario' });
@@ -13,28 +14,33 @@ const Register = () => {
 
     React.useEffect(() => {
         // Consultar si hay usuarios para mostrar el selector de rol solo si no hay ninguno (primer registro)
-        axios.get(`${API_ENDPOINTS.USERS}/count`)
-            .then(res => {
-                if (res.data.count === 0) setShowRole(true);
-            })
-            .catch(() => { });
+        const fetchUserCount = async () => {
+            try {
+                const res = await apiService.get('/users/count');
+                if (res.count === 0) setShowRole(true);
+            } catch (err) {
+                // setUserCount(0); // This line was removed from the new_code, so it's removed here.
+            }
+        };
+        fetchUserCount();
     }, []);
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = async (e) => {
+    const handleRegister = async (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
+        setError('');
         try {
-            const res = await axios.post(`${API_ENDPOINTS.USERS}/register`, form);
+            const res = await apiService.post('/users/register', form);
+            // setSuccess('Usuario registrado correctamente'); // This line was removed from the new_code, so it's removed here.
             localStorage.setItem('token', res.data.token);
             localStorage.setItem('role', res.data.rol || form.rol);
             navigate('/');
         } catch (err) {
-            setError(err.response?.data?.message || 'Error al registrarse');
+            setError('Error al registrar usuario');
         } finally {
             setLoading(false);
         }
@@ -45,7 +51,7 @@ const Register = () => {
             <Paper sx={{ p: 4 }}>
                 <Typography variant="h4" gutterBottom>Registro de Usuario</Typography>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleRegister}>
                     <TextField
                         label="Nombre"
                         name="nombre"

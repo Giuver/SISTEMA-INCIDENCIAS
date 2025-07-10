@@ -29,6 +29,7 @@ import axios from 'axios';
 import { useNotification } from '../utils/notification';
 import { io } from 'socket.io-client';
 import sessionManager from '../utils/sessionManager';
+import { apiService } from '../utils/apiService';
 
 const NotificationCenter = () => {
     const [notifications, setNotifications] = useState([]);
@@ -103,20 +104,16 @@ const NotificationCenter = () => {
             setLoading(true);
             const authData = sessionManager.getAuthData();
             const token = authData?.token;
-            const response = await axios.get(`/api/notifications?page=${pageNum}&limit=10`, {
+            const response = await apiService.get(`/notifications?page=${pageNum}&limit=10`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-
-            const { notifications: newNotifications, total, unreadCount: newUnreadCount } = response.data;
-
+            const { notifications: newNotifications, total, unreadCount: newUnreadCount } = response;
             setUnreadCount(newUnreadCount);
-
             if (append) {
                 setNotifications(prev => [...prev, ...newNotifications]);
             } else {
                 setNotifications(newNotifications);
             }
-
             setHasMore(newNotifications.length === 10);
         } catch (error) {
             notify('Error al cargar notificaciones', 'error');
@@ -129,10 +126,9 @@ const NotificationCenter = () => {
         try {
             const authData = sessionManager.getAuthData();
             const token = authData?.token;
-            await axios.patch(`/api/notifications/${notificationId}/read`, {}, {
+            await apiService.patch(`/notifications/${notificationId}/read`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-
             setNotifications(prev =>
                 prev.map(notif =>
                     notif._id === notificationId
@@ -140,7 +136,6 @@ const NotificationCenter = () => {
                         : notif
                 )
             );
-
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch (error) {
             notify('Error al marcar como leída', 'error');
@@ -151,14 +146,12 @@ const NotificationCenter = () => {
         try {
             const authData = sessionManager.getAuthData();
             const token = authData?.token;
-            await axios.patch('/api/notifications/read-all', {}, {
+            await apiService.patch('/notifications/read-all', {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-
             setNotifications(prev =>
                 prev.map(notif => ({ ...notif, read: true }))
             );
-
             setUnreadCount(0);
             notify('Todas las notificaciones marcadas como leídas', 'success');
         } catch (error) {
@@ -178,12 +171,15 @@ const NotificationCenter = () => {
         if (!socketRef.current) {
             const authData = sessionManager.getAuthData();
             const token = authData?.token;
-            // Usar variable de entorno para la URL del backend
+            // Usar variable de entorno para la URL del backend sin /api
             const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
             socketRef.current = io(backendUrl, {
                 auth: {
                     token: token
-                }
+                },
+                transports: ['websocket', 'polling'],
+                upgrade: true,
+                rememberUpgrade: true
             });
             socketRef.current.on('connect', () => {
                 console.log('WebSocket conectado');
@@ -191,6 +187,9 @@ const NotificationCenter = () => {
             });
             socketRef.current.on('connect_error', (error) => {
                 console.error('Error de conexión WebSocket:', error);
+            });
+            socketRef.current.on('disconnect', (reason) => {
+                console.log('WebSocket desconectado:', reason);
             });
             socketRef.current.on('newNotification', (notification) => {
                 notify(notification.title + ': ' + notification.message, notification.priority === 'high' ? 'error' : notification.priority === 'medium' ? 'warning' : 'info');

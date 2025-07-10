@@ -44,6 +44,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import EditIcon from '@mui/icons-material/Edit';
 import sessionManager from '../utils/sessionManager';
 import { API_ENDPOINTS } from '../config/api';
+import { apiService } from '../utils/apiService';
 
 const statusColors = {
     pendiente: 'warning',
@@ -112,11 +113,9 @@ const IncidentList = () => {
             if (filtros.asignado) params.append('assignedTo', filtros.asignado);
             if (filtros.search) params.append('search', filtros.search);
 
-            const res = await axios.get(`${API_ENDPOINTS.INCIDENTS}?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setIncidents(res.data.incidents || res.data);
-            setTotal(res.data.total || 0);
+            const res = await apiService.get(`/incidents?${params.toString()}`);
+            setIncidents(res.incidents || res || []);
+            setTotal(res.total || 0);
         } catch (err) {
             setIncidents([]);
             setTotal(0);
@@ -128,10 +127,8 @@ const IncidentList = () => {
 
     const fetchAreas = async () => {
         try {
-            const res = await axios.get(`${import.meta.env.VITE_API_URL}/areas`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setCategorias(res.data);
+            const res = await apiService.get('/areas');
+            setCategorias(res);
         } catch (err) {
             setCategorias([]);
             notify('Error al cargar áreas', 'error');
@@ -143,10 +140,8 @@ const IncidentList = () => {
             const userRole = role;
             // Solo cargar usuarios si es admin o soporte
             if (userRole === 'admin' || userRole === 'soporte') {
-                const res = await axios.get(`${API_ENDPOINTS.USERS}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setUsuarios(res.data);
+                const res = await apiService.get('/users');
+                setUsuarios(res);
             } else {
                 setUsuarios([]);
             }
@@ -235,12 +230,10 @@ const IncidentList = () => {
     const handleUpdateStatus = async () => {
         setUpdating(true);
         try {
-            await axios.patch(`${API_ENDPOINTS.INCIDENTS}/${selectedIncident._id}/estado`, {
+            await apiService.patch(`/incidents/${selectedIncident._id}/estado`, {
                 status: newStatus,
                 comment: 'Cambio de estado desde el modal',
                 solution: newStatus === 'resuelto' ? solution : undefined
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             notify('Estado actualizado correctamente', 'success');
             await fetchIncidents();
@@ -257,10 +250,8 @@ const IncidentList = () => {
     const handleUpdateAssigned = async () => {
         setUpdating(true);
         try {
-            await axios.patch(`${API_ENDPOINTS.INCIDENTS}/${selectedIncident._id}/asignar`, {
+            await apiService.patch(`/incidents/${selectedIncident._id}/asignar`, {
                 assignedTo: newAssigned
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             notify('Responsable asignado correctamente', 'success');
             await fetchIncidents();
@@ -276,7 +267,7 @@ const IncidentList = () => {
     const handleQuickEdit = async (id, field, value) => {
         setRowUpdating(id + field);
         try {
-            await axios.patch(`${API_ENDPOINTS.INCIDENTS}/${id}/asignar`, { assignedTo: value }, { headers: { Authorization: `Bearer ${token}` } });
+            await apiService.patch(`/incidents/${id}/asignar`, { assignedTo: value });
             notify('Responsable actualizado', 'success');
         } catch (err) {
             notify('Error al actualizar', 'error');

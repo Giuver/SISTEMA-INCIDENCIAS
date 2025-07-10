@@ -55,11 +55,13 @@ const PrivateRoute = ({ children, roles }) => {
             // Si faltan datos, verificar con el backend
             console.log('🔍 Verificando token con el backend...');
             try {
-                const response = await fetch('http://localhost:5000/api/users/verify', {
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const response = await fetch(`${apiUrl}/api/users/verify`, {
                     method: 'GET',
+                    credentials: 'include',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        Authorization: token ? `Bearer ${token}` : ''
                     }
                 });
 

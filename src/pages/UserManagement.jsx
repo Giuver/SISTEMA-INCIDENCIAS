@@ -7,6 +7,7 @@ import axios from 'axios';
 import { useNotification } from '../utils/notification';
 import sessionManager from '../utils/sessionManager';
 import { API_ENDPOINTS } from '../config/api';
+import { apiService } from '../utils/apiService';
 
 const roles = [
     { value: 'usuario', label: 'Usuario' },
@@ -23,6 +24,10 @@ const UserManagement = () => {
     const [success, setSuccess] = useState('');
     const notify = useNotification();
     const [deleteDialog, setDeleteDialog] = useState({ open: false, user: null });
+    const [loading, setLoading] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [registering, setRegistering] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
 
     // Control de permisos por rol
     // Solo admin puede gestionar usuarios
@@ -30,14 +35,14 @@ const UserManagement = () => {
     const canManageUsers = userRole === 'admin';
 
     const fetchUsers = async () => {
+        setLoading(true);
         try {
-            const token = sessionManager.getAuthData()?.token;
-            const res = await axios.get(API_ENDPOINTS.USERS, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setUsers(res.data);
+            const res = await apiService.get('/users');
+            setUsers(res);
         } catch (err) {
-            setError('Error al cargar usuarios');
+            setUsers([]);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -82,16 +87,12 @@ const UserManagement = () => {
                 // Editar usuario
                 const updateData = { ...form };
                 if (!form.password) delete updateData.password;
-                await axios.patch(`${API_ENDPOINTS.USERS}/${editingUser._id}`, updateData, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await apiService.patch(`/users/${editingUser._id}`, updateData);
                 setSuccess('Usuario actualizado');
                 notify('Usuario actualizado', 'success');
             } else {
                 // Crear usuario
-                await axios.post(`${API_ENDPOINTS.USERS}/register`, form, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await apiService.post('/users/register', form);
                 setSuccess('Usuario creado');
                 notify('Usuario creado', 'success');
             }
@@ -114,11 +115,8 @@ const UserManagement = () => {
     const handleDeleteConfirm = async () => {
         const id = deleteDialog.user._id;
         setDeleteDialog({ open: false, user: null });
-        const token = sessionManager.getAuthData()?.token;
         try {
-            await axios.delete(`${API_ENDPOINTS.USERS}/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await apiService.delete(`/users/${id}`);
             setSuccess('Usuario eliminado');
             notify('Usuario eliminado', 'success');
             fetchUsers();

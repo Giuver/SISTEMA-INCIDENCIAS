@@ -93,4 +93,4 @@ async function migrateCategoriesToAreas() {
     }
 }
 
-migrateCategoriesToAreas(); 
+migrateCategoriesToAreas();

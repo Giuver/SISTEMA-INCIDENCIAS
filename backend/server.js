@@ -30,19 +30,26 @@ const io = new Server(httpServer, {
             if (origin && (origin.includes('vercel.app') || origin.includes('vercel.com'))) {
                 return callback(null, true);
             }
+            if (origin && origin.includes('.railway.app')) {
+                return callback(null, true);
+            }
             console.log('Origen bloqueado por CORS (Socket.IO):', origin);
             return callback(new Error('No permitido por CORS (Socket.IO)'));
         },
         methods: ["GET", "POST"],
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization"]
-    }
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true
 });
 
-// Configuración de CORS que acepta cualquier subdominio de Vercel
+// Configuración de CORS que acepta cualquier subdominio de Vercel y Railway
 const allowedOrigins = [
     'http://localhost:5173',
-    'http://localhost:5174'
+    'http://localhost:5174',
+    'https://sistema-incidencias-tres.vercel.app',
+    'https://sistema-incidencias-production.up.railway.app'
 ];
 
 const corsOptions = {
@@ -62,6 +69,11 @@ const corsOptions = {
 
         // Permitir dominios personalizados de Vercel (si los tienes)
         if (origin && (origin.includes('vercel.app') || origin.includes('vercel.com'))) {
+            return callback(null, true);
+        }
+
+        // Permitir dominios de Railway
+        if (origin && origin.includes('.railway.app')) {
             return callback(null, true);
         }
 
@@ -88,6 +100,8 @@ app.use((req, res, next) => {
     } else if (origin && origin.includes('.vercel.app')) {
         allowOrigin = origin;
     } else if (origin && (origin.includes('vercel.app') || origin.includes('vercel.com'))) {
+        allowOrigin = origin;
+    } else if (origin && origin.includes('.railway.app')) {
         allowOrigin = origin;
     }
 
