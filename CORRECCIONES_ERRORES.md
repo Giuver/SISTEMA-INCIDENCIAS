@@ -8,12 +8,22 @@
 - La URL de producción en `frontend.env` incluía `/api` al final
 - `apiService.js` concatenaba `/api` nuevamente
 - Resultado: URLs como `https://backend.com/api/api/incidents`
+- Múltiples archivos de configuración causaban conflictos
 
 **Solución:**
 ```bash
 # frontend.env - CORREGIDO
 VITE_API_URL=https://sistema-incidencias-production.up.railway.app
 # (sin /api al final)
+
+# apiService.js - CORREGIDO
+baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api'
+
+# src/config/api.js - CORREGIDO
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api'
+
+# src/utils/api.js - CORREGIDO
+baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api'
 ```
 
 ### 2. ❌ Error de WebSocket - "Invalid namespace"
@@ -21,6 +31,7 @@ VITE_API_URL=https://sistema-incidencias-production.up.railway.app
 **Problema:**
 - Socket.IO no estaba configurado correctamente para Railway
 - Faltaban opciones de transporte y compatibilidad
+- Error de namespace inválido
 
 **Solución:**
 ```javascript
@@ -29,7 +40,9 @@ socketRef.current = io(backendUrl, {
     auth: { token: token },
     transports: ['websocket', 'polling'],
     upgrade: true,
-    rememberUpgrade: true
+    rememberUpgrade: true,
+    path: '/socket.io/',
+    forceNew: true
 });
 ```
 
@@ -60,10 +73,14 @@ if (origin && origin.includes('.railway.app')) {
 **Problema:**
 - Las rutas estaban configuradas correctamente en el backend
 - El problema era la URL base duplicada en el frontend
+- Múltiples archivos de configuración causaban conflictos
 
 **Solución:**
 - Corregida la URL base en `frontend.env`
+- Unificada la configuración en todos los archivos de API
+- Agregada ruta de prueba `/api/test` para verificación
 - Verificadas las rutas en `server.js`:
+  - `/api/test` ✅ (nueva ruta de prueba)
   - `/api/incidents` ✅
   - `/api/areas` ✅
   - `/api/audit` ✅
@@ -118,7 +135,11 @@ check-system-status.bat
 
 ### 2. Probar Conexiones
 ```bash
+# Script de prueba
+node test-connections.js
+
 # Backend
+curl https://sistema-incidencias-production.up.railway.app/api/test
 curl https://sistema-incidencias-production.up.railway.app/api/incidents
 
 # WebSocket

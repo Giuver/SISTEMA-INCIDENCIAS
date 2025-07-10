@@ -140,6 +140,15 @@ mongoose.connect(mongoUri, {
     .then(() => console.log('MongoDB conectado:', mongoUri))
     .catch(err => console.error('Error de conexión a MongoDB:', err));
 
+// Ruta de prueba para verificar que el servidor funciona
+app.get('/api/test', (req, res) => {
+    res.json({
+        message: 'Servidor funcionando correctamente',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
 // Rutas
 app.use('/api/incidents', require('./routes/incidents'));
 app.use('/api/users', require('./routes/users'));

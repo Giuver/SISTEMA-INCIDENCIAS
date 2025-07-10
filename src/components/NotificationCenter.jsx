@@ -179,7 +179,9 @@ const NotificationCenter = () => {
                 },
                 transports: ['websocket', 'polling'],
                 upgrade: true,
-                rememberUpgrade: true
+                rememberUpgrade: true,
+                path: '/socket.io/',
+                forceNew: true
             });
             socketRef.current.on('connect', () => {
                 console.log('WebSocket conectado');
