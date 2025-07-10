@@ -34,10 +34,12 @@ const Login = () => {
         setError('');
         try {
             const res = await apiService.post(API_ENDPOINTS.LOGIN, form);
-            localStorage.setItem('token', res.token);
-            localStorage.setItem('role', res.role);
-            localStorage.setItem('userId', res.userId);
-            navigate('/');
+            sessionManager.setAuthData({
+                token: res.token,
+                role: res.role,
+                userId: res.userId
+            });
+            window.location.href = '/'; // Forzar recarga para que la sesión se lea correctamente
         } catch (err) {
             setError('Error al iniciar sesión');
         } finally {
