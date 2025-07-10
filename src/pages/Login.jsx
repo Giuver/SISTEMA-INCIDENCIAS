@@ -33,7 +33,7 @@ const Login = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await apiService.post('/users/login', form);
+            const res = await apiService.post(API_ENDPOINTS.LOGIN, form);
             localStorage.setItem('token', res.token);
             localStorage.setItem('role', res.role);
             localStorage.setItem('userId', res.userId);
