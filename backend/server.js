@@ -18,7 +18,21 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: ["http://localhost:5173", "http://localhost:5174"],
+        origin: function (origin, callback) {
+            // Permitir peticiones sin origen (como Postman)
+            if (!origin) return callback(null, true);
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+            if (origin && origin.includes('.vercel.app')) {
+                return callback(null, true);
+            }
+            if (origin && (origin.includes('vercel.app') || origin.includes('vercel.com'))) {
+                return callback(null, true);
+            }
+            console.log('Origen bloqueado por CORS (Socket.IO):', origin);
+            return callback(new Error('No permitido por CORS (Socket.IO)'));
+        },
         methods: ["GET", "POST"],
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization"]
